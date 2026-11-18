@@ -15,8 +15,6 @@ function explicitWall(compound, point) {
 
 export function isWalkableTile(compound, point, visit = null) {
   if (!point || point.x < 0 || point.x >= (compound.map.width ?? MAP_COLS) || point.y < 0 || point.y >= (compound.map.height ?? MAP_ROWS)) return false
-  const entrance = entranceOf(compound)
-  if (point.y === (compound.map.height ?? MAP_ROWS) - 1 && point.x !== entrance.x) return false
   if (explicitWall(compound, point)) return false
   const inRoom = (compound.map.rooms ?? []).some((room) => point.x >= room.x && point.x < room.x + room.w && point.y >= room.y && point.y < room.y + room.h)
   const inPassage = (compound.map.passages ?? []).some((passage) => point.x >= passage.x && point.x < passage.x + passage.width && point.y >= passage.y && point.y < passage.y + passage.height)
