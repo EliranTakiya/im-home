@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises'
 
 const source = await readFile(new URL('./VisitGame.jsx', import.meta.url), 'utf8')
 const styles = await readFile(new URL('./VisitGame.css', import.meta.url), 'utf8')
+const builderSource = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
+const builderStyles = await readFile(new URL('./Builder.css', import.meta.url), 'utf8')
 
 test('floating direction controls sit next to the map and expose current facing', () => {
   assert.match(source, /className="visit-map-stage">\s*<VisitMap[\s\S]*?<DirectionPad[^>]+facing=\{guest\.facing/)
@@ -84,4 +86,32 @@ test('Dark Neon Adventure effects are scoped, responsive, non-interactive, and r
   assert.match(styles, /@media\(max-width:760px\)/)
   assert.match(styles, /@media\(max-width:380px\)/)
   assert.match(styles, /@media\(max-width:760px\) and \(orientation:landscape\)/)
+})
+
+test('builder and visit use the same row-major coordinates and left-to-right map orientation', () => {
+  const rowMajor = /const x = index % MAP_COLS\s+const y = Math\.floor\(index \/ MAP_COLS\)/
+  assert.match(builderSource, rowMajor)
+  assert.match(source, rowMajor)
+  assert.match(builderStyles, /\.compound-grid,\.map-coordinates-top\{direction:ltr\}/)
+  assert.match(styles, /\.visit-map\{direction:ltr\}/)
+
+  const asymmetricCompound = {
+    entrance: { x: 0, y: 7 },
+    exit: { x: 10, y: 1 },
+    traps: [{ x: 2, y: 5 }, { x: 9, y: 3 }],
+  }
+  const indexOf = ({ x, y }) => y * 12 + x
+  assert.deepEqual(
+    [asymmetricCompound.entrance, asymmetricCompound.exit, ...asymmetricCompound.traps].map(indexOf),
+    [84, 22, 62, 45],
+  )
+  assert.doesNotMatch(styles, /\.visit-map(?:-wrap)?\{[^}]*transform:/)
+})
+
+test('visit map restores the original tactile wall and corridor textures while retaining distinct tile surfaces', () => {
+  assert.match(styles, /\.visit-tile\.tile-wall\{background-image:repeating-linear-gradient\(135deg/)
+  assert.match(styles, /\.visit-tile\.tile-passage\{background-image:repeating-linear-gradient\(135deg/)
+  assert.match(styles, /\.visit-tile\.tile-room\{background-image:repeating-linear-gradient/)
+  assert.match(styles, /\.visit-tile\.tile-entrance\{background-image:repeating-linear-gradient/)
+  assert.match(styles, /#494235/)
 })

@@ -80,3 +80,11 @@
 @keyframes gear-pulse{0%{opacity:0;transform:scale(.7);box-shadow:0 0 0 8px #a78bfa55}40%{opacity:1}100%{opacity:0;transform:scale(1.45)}}
 @keyframes hud-damage{0%,100%{background:transparent}25%{background:#ff70484a;color:#fff}}@keyframes score-arrive{0%{transform:scale(1.18);text-shadow:0 0 14px #f5c45199}100%{transform:scale(1);text-shadow:none}}@keyframes dialog-enter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){.visit-shell *, .visit-shell *::before,.visit-shell *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}.visit-guest{transition:none}}
+
+/* Textured, earthy floors restore the physical surface feel without touching trap effects. */
+.visit-tile{background-image:repeating-linear-gradient(0deg,#ffffff07 0 1px,transparent 1px 6px),linear-gradient(145deg,#302e25,#22241e)}
+.visit-tile:nth-child(odd){background-image:repeating-linear-gradient(0deg,#ffffff09 0 1px,transparent 1px 6px),linear-gradient(145deg,#333126,#24251f)}
+.visit-tile.tile-wall{background-image:repeating-linear-gradient(135deg,#171916,#171916 4px,#20211d 4px,#20211d 8px),linear-gradient(145deg,#211f1a,#171916);border-color:#ffffff0b}
+.visit-tile.tile-room{background-image:repeating-linear-gradient(0deg,#e2c9900a 0 1px,transparent 1px 7px),repeating-linear-gradient(90deg,transparent 0 12px,#080a090c 12px 13px),linear-gradient(145deg,#494235,#343329);border-color:#8f8060;box-shadow:inset 0 0 12px #090a0870,inset 0 1px #f0d89b18}
+.visit-tile.tile-passage{background-image:repeating-linear-gradient(135deg,#d3b2760c 0 4px,#11171410 4px 9px),linear-gradient(90deg,#343229,#454032 48%,#302e25);border-color:#6e6043}
+.visit-tile.tile-entrance{background-image:repeating-linear-gradient(0deg,#f5c45112 0 1px,transparent 1px 6px),linear-gradient(145deg,#615033,#3c3325);border-color:#e3b450;box-shadow:inset 0 0 13px #f5c45128}
