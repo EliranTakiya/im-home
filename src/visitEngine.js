@@ -1,79 +1,80 @@
-import { MAP_ROWS } from './compound.js'
 import { TRAP_TYPES } from './traps.js'
 import { createVisitPerkState } from './perks.js'
 import { EQUIPMENT_CATALOG, toolsForTrapEncounter, consumeToolUse } from './equipment.js'
+import { calculateStepBudget, findShortestPath, isWalkableTile, minimumVisitSteps, stepTarget } from './navigation.js'
 
 export const VISIT_RESULTS_KEY = 'im-home-visit-results-v1'
 export const ACTIVE_VISIT_KEY = 'im-home-active-visit-v1'
-const DIRECTIONS = [[0, -1], [1, 0], [0, 1], [-1, 0]]
 const key = ({ x, y }) => `${x}:${y}`
 const copy = (value) => structuredClone(value)
 
-function entranceOf(compound) {
-  return compound.map.entrances[0] ?? compound.map.exits[0] ?? { x: 5, y: MAP_ROWS - 1 }
-}
-
-function blockedTiles(compound, visit) {
-  return new Set(compound.items.filter((item) => item.type === 'trap' && item.trapType === 'door' && (visit.trapStates[item.id]?.lockedTurnsRemaining > 0 || visit.trapStates[item.id]?.requiresKey)).map(key))
-}
-
 export function findPath(compound, visit, start, goal) {
-  const blocked = blockedTiles(compound, visit)
-  const queue = [start]
-  const previous = new Map([[key(start), null]])
-  for (let index = 0; index < queue.length; index += 1) {
-    const point = queue[index]
-    if (point.x === goal.x && point.y === goal.y) break
-    for (const [dx, dy] of DIRECTIONS) {
-      const next = { x: point.x + dx, y: point.y + dy }
-      const nextKey = key(next)
-      if (next.x < 0 || next.x >= compound.map.width || next.y < 0 || next.y >= compound.map.height || (next.y === compound.map.height - 1 && next.x !== entranceOf(compound).x) || blocked.has(nextKey) || previous.has(nextKey)) continue
-      previous.set(nextKey, key(point))
-      queue.push(next)
-    }
-  }
-  if (!previous.has(key(goal))) return []
-  const path = []
-  let cursor = key(goal)
-  while (cursor !== null) {
-    const [x, y] = cursor.split(':').map(Number)
-    path.unshift({ x, y })
-    cursor = previous.get(cursor)
-  }
-  return path
-}
-
-function farthestRoom(compound, start, visit) {
-  const rooms = compound.map.rooms
-  if (!rooms.length) return start
-  return rooms.map((room) => {
-    const points = []
-    for (let y = room.y; y < room.y + room.h; y += 1) for (let x = room.x; x < room.x + room.w; x += 1) points.push({ x, y })
-    const reachable = points.map((point) => ({ point, distance: findPath(compound, visit, start, point).length })).filter((entry) => entry.distance > 0)
-    reachable.sort((a, b) => b.distance - a.distance)
-    return { room, ...reachable[0] }
-  }).filter((entry) => entry.point).sort((a, b) => b.distance - a.distance)[0]?.point ?? start
+  return findShortestPath(compound, start, goal, visit)
 }
 
 export function createVisit(compound, { id = globalThis.crypto?.randomUUID?.() ?? `visit-${Date.now()}`, startedAt = new Date().toISOString(), perkSelection = {}, equipment = null } = {}) {
   if (!compound || compound.version !== 3 || !compound.map || !Array.isArray(compound.items)) throw new TypeError('A version 3 compound is required.')
-  const entrance = { ...entranceOf(compound) }
+  const { entrance, goal, steps: minimumSteps } = minimumVisitSteps(compound)
+  const target = { ...goal }
   const visit = {
     id, compoundVersion: compound.version, startedAt, stage: 'outbound', outcome: 'active',
-    entrance, target: entrance, guest: { id: `guest-${id}`, name: 'אורח', position: entrance, status: 'מוכן', health: 100, damageTaken: 0, gasTurnsRemaining: 0, gasExposure: [], stunTurnsRemaining: 0, stepsTaken: 0, progress: 0, turns: 0 },
+    entrance, target, minimumSteps, stepBudget: calculateStepBudget(compound), stepWarnings: [],
+    guest: { id: `guest-${id}`, name: 'אורח', position: entrance, facing: 'north', status: 'מוכן', health: 100, damageTaken: 0, gasTurnsRemaining: 0, gasExposure: [], stunTurnsRemaining: 0, stepsTaken: 0, progress: 0, turns: 0 },
     trapStates: Object.fromEntries(compound.items.filter((item) => item.type === 'trap').map((trap) => [trap.id, { triggered: false, ignored: false, lockedTurnsRemaining: 0, requiresKey: false, gasTurnsRemaining: 0 }])),
     perks: createVisitPerkState(id, perkSelection),
     equipment: equipment ? copy(equipment) : { selectedToolIds: [], tools: {} },
     pendingAction: null, events: [], reroutes: 0, plannedSteps: 0,
   }
-  visit.target = farthestRoom(compound, entrance, visit)
-  visit.plannedSteps = Math.max(0, findPath(compound, visit, entrance, visit.target).length - 1) * 2
+  visit.plannedSteps = minimumSteps
   if (key(visit.target) === key(entrance)) visit.stage = 'returning'
   return visit
 }
 
 function event(visit, type, message, trapId = null, details = {}) {
   visit.events.push({ turn: visit.guest.turns, type, message, trapId, ...details })
+}
+
+function recordMovement(visit, { preserveProgress = false } = {}) {
+  const guest = visit.guest
+  guest.stepsTaken += 1
+  if (!preserveProgress) guest.progress = visit.minimumSteps ? Math.min(99, Math.round(guest.stepsTaken / visit.minimumSteps * 100)) : 100
+  if (visit.stage === 'outbound' && key(guest.position) === key(visit.target)) {
+    visit.stage = 'returning'
+    event(visit, 'arrive', 'האורח הגיע ליעד וכעת חוזר ליציאה.')
+  }
+  if (visit.stage === 'returning' && key(guest.position) === key(visit.entrance)) {
+    visit.outcome = 'completed'
+    guest.status = 'הביקור הושלם'
+    guest.progress = 100
+    event(visit, 'complete', 'האורח הגיע ליציאה.')
+  }
+  if (visit.outcome !== 'active') return
+  if (visit.outcome !== 'active' || !Number.isFinite(visit.stepBudget) || visit.stepBudget <= 0) return
+  visit.stepWarnings ??= []
+  const ratio = guest.stepsTaken / visit.stepBudget
+  for (const threshold of [0.75, 0.9]) {
+    if (ratio >= threshold && !visit.stepWarnings.includes(threshold)) {
+      visit.stepWarnings.push(threshold)
+      event(visit, 'step-warning', threshold === 0.75 ? 'נוצלו 75% מתקציב הצעדים.' : 'נוצלו 90% מתקציב הצעדים.', null, { threshold })
+    }
+  }
+  if (guest.stepsTaken >= visit.stepBudget) {
+    visit.outcome = 'stalled'
+    guest.status = 'תקציב הצעדים הסתיים'
+    event(visit, 'step-limit', 'תקציב הצעדים הסתיים לפני הגעה ליציאה.')
+  }
+}
+
+export function calculateVisitScore(visit) {
+  const minimum = Math.max(0, Number(visit.minimumSteps ?? visit.plannedSteps) || 0)
+  const steps = Math.max(0, Number(visit.guest?.stepsTaken) || 0)
+  const efficiency = minimum ? Math.max(0, Math.round(300 * minimum / Math.max(minimum, steps))) : 0
+  const survival = Math.max(0, Math.min(200, Math.round((Number(visit.guest?.health) || 0) * 2)))
+  const handledTraps = Math.min(250, Object.values(visit.trapStates ?? {}).filter((state) => state.triggered).length * 25)
+  const equipmentUses = Object.values(visit.equipment?.tools ?? {}).reduce((sum, tool) => sum + new Set((tool.uses ?? []).map((usage) => usage.actionId)).size, 0)
+  const equipment = Math.min(200, equipmentUses * 50)
+  const completion = visit.outcome === 'completed' ? 500 : 0
+  return { total: efficiency + survival + handledTraps + equipment + completion, efficiency, survival, handledTraps, equipment, completion }
 }
 
 function applyDamage(visit, damage, source, trap) {
@@ -185,20 +186,29 @@ function resolveAutomaticTrap(compound, visit, trap, position, activeGasTrapIds,
     activeGasTrapIds.add(trap.id)
     applyGasDamage(compound, visit, visit.guest.position, new Set())
   }
-  if (visit.outcome === 'active') {
-    visit.guest.stepsTaken += 1
-    if (!(trap.trapType === 'floor' && trap.effect?.kind === 'restart' && !floorRecovery)) {
-      visit.guest.progress = visit.plannedSteps ? Math.min(99, Math.round(visit.guest.stepsTaken / visit.plannedSteps * 100)) : 100
-    }
-  }
+  if (visit.outcome === 'active') recordMovement(visit, { preserveProgress: trap.trapType === 'floor' && trap.effect?.kind === 'restart' && !floorRecovery })
   finishPendingTurn(compound, visit, activeGasTrapIds)
   return visit
 }
 
-export function advanceVisit(compound, currentVisit) {
+export function advanceVisit(compound, currentVisit, command = 'auto') {
   if (currentVisit.outcome !== 'active' || currentVisit.pendingAction) return currentVisit
+  const explicit = command !== 'auto'
+  const requestedMove = explicit ? stepTarget(currentVisit.guest.position, currentVisit.guest.facing ?? 'north', command) : null
+  if (explicit && (!requestedMove || !isWalkableTile(compound, requestedMove.position, currentVisit))) return currentVisit
   const visit = copy(currentVisit)
   const guest = visit.guest
+  if (guest.facing === undefined) guest.facing = 'north'
+  visit.minimumSteps ??= minimumVisitSteps(compound).steps
+  visit.stepBudget ??= Math.max(calculateStepBudget(compound), guest.stepsTaken + Math.max(1, Math.ceil((visit.minimumSteps || 1) * 0.5)))
+  visit.stepWarnings ??= []
+  if (guest.stepsTaken >= visit.stepBudget) {
+    visit.outcome = 'stalled'
+    guest.status = 'תקציב הצעדים הסתיים'
+    event(visit, 'step-limit', 'תקציב הצעדים הסתיים לפני הגעה ליציאה.')
+    return visit
+  }
+  if (requestedMove) guest.facing = requestedMove.facing
   guest.turns += 1
   const gasDamageApplied = new Set()
   const activeGasTimers = new Set(Object.entries(visit.trapStates).filter(([, state]) => state.gasTurnsRemaining > 0).map(([trapId]) => trapId))
@@ -215,7 +225,7 @@ export function advanceVisit(compound, currentVisit) {
   for (const state of Object.values(visit.trapStates)) if (state.lockedTurnsRemaining > 0) state.lockedTurnsRemaining -= 1
   if (guest.stunTurnsRemaining > 0) { guest.stunTurnsRemaining -= 1; guest.status = 'מתאושש'; event(visit, 'stun', 'האורח מתאושש ואינו מתקדם.'); finishTurn(); return visit }
   const goal = visit.stage === 'outbound' ? visit.target : visit.entrance
-  const path = findPath(compound, visit, guest.position, goal)
+  const path = explicit ? [guest.position, requestedMove.position] : findPath(compound, visit, guest.position, goal)
   if (!path.length) { guest.status = 'אין מסלול'; visit.outcome = 'stalled'; event(visit, 'blocked', 'לא נמצא מסלול אל היעד.'); finishTurn(); return visit }
   if (path.length === 1) {
     if (visit.stage === 'outbound') { visit.stage = 'returning'; event(visit, 'arrive', 'האורח הגיע ליעד וכעת חוזר ליציאה.'); }
@@ -224,6 +234,8 @@ export function advanceVisit(compound, currentVisit) {
     return visit
   }
   const next = path[1]
+  const delta = { x: next.x - guest.position.x, y: next.y - guest.position.y }
+  if (!explicit) guest.facing = delta.x === 1 ? 'east' : delta.x === -1 ? 'west' : delta.y === 1 ? 'south' : 'north'
   let trap = trapAt(compound, next)
   if (trap && !visit.trapStates[trap.id]?.triggered && !visit.trapStates[trap.id]?.ignored) {
     const activation = trap.activation?.event ?? TRAP_TYPES[trap.trapType]?.defaultActivation
@@ -251,8 +263,7 @@ export function advanceVisit(compound, currentVisit) {
       }
       if (trap.trapType === 'gas') applyGasDamage(compound, visit, guest.position, gasDamageApplied)
       if (visit.outcome !== 'active') { finishTurn(); return visit }
-      guest.stepsTaken += 1
-      if (!(trap.trapType === 'floor' && trap.effect?.kind === 'restart')) guest.progress = visit.plannedSteps ? Math.min(99, Math.round(guest.stepsTaken / visit.plannedSteps * 100)) : 100
+      recordMovement(visit, { preserveProgress: trap.trapType === 'floor' && trap.effect?.kind === 'restart' })
       finishTurn()
       return visit
     }
@@ -267,9 +278,8 @@ export function advanceVisit(compound, currentVisit) {
   guest.position = next
   applyGasDamage(compound, visit, guest.position, gasDamageApplied)
   if (visit.outcome !== 'active') { finishTurn(); return visit }
-  guest.stepsTaken += 1
   guest.status = guest.gasTurnsRemaining > 0 ? 'מושפע מגז' : 'בתנועה'
-  guest.progress = visit.plannedSteps ? Math.min(99, Math.round(guest.stepsTaken / visit.plannedSteps * 100)) : 100
+  recordMovement(visit)
   finishTurn()
   return visit
 }
@@ -320,7 +330,7 @@ export function loadVisitResults(storage = globalThis.localStorage) {
 export function saveVisitResult(visit, storage = globalThis.localStorage) {
   if (!['completed', 'dead', 'stalled'].includes(visit.outcome)) return loadVisitResults(storage)
   const results = loadVisitResults(storage).filter((result) => result.id !== visit.id)
-  results.unshift({ id: visit.id, startedAt: visit.startedAt, endedAt: new Date().toISOString(), outcome: visit.outcome, turns: visit.guest.turns, stepsTaken: visit.guest.stepsTaken, damageTaken: visit.guest.damageTaken, reroutes: visit.reroutes, compoundVersion: visit.compoundVersion, perkSelections: copy(visit.perks?.selections ?? { owner: [], guest: [] }), perkEvents: copy(visit.perks?.events ?? []) })
+  results.unshift({ id: visit.id, startedAt: visit.startedAt, endedAt: new Date().toISOString(), outcome: visit.outcome, turns: visit.guest.turns, stepsTaken: visit.guest.stepsTaken, minimumSteps: visit.minimumSteps ?? visit.plannedSteps, stepBudget: visit.stepBudget ?? null, damageTaken: visit.guest.damageTaken, reroutes: visit.reroutes, score: calculateVisitScore(visit), compoundVersion: visit.compoundVersion, perkSelections: copy(visit.perks?.selections ?? { owner: [], guest: [] }), perkEvents: copy(visit.perks?.events ?? []) })
   const bounded = results.slice(0, 50)
   try { storage?.setItem(VISIT_RESULTS_KEY, JSON.stringify(bounded)) } catch { /* Results remain available to the caller when storage is unavailable. */ }
   return bounded
@@ -330,7 +340,15 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
   try {
     const record = JSON.parse(storage?.getItem(ACTIVE_VISIT_KEY) ?? 'null')
     if (record?.version !== 1 || record.visit?.outcome !== 'active' || !record.compound || record.compound.version !== 3) return null
-    return { compound: record.compound, session: record.visit }
+    const session = record.visit
+    const computedMinimum = minimumVisitSteps(record.compound).steps
+    session.minimumSteps ??= session.plannedSteps ?? computedMinimum
+    session.plannedSteps ??= session.minimumSteps
+    session.stepBudget ??= Math.max(calculateStepBudget(record.compound), (session.guest?.stepsTaken ?? 0) + Math.max(1, Math.ceil((session.minimumSteps || 1) * 0.5)))
+    session.stepWarnings ??= []
+    session.guest.facing ??= 'north'
+    session.equipment ??= { selectedToolIds: [], tools: {} }
+    return { compound: record.compound, session }
   } catch { return null }
 }
 

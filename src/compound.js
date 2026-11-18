@@ -3,6 +3,7 @@ import { createTrapData, DEFAULT_TRAP_TYPE, normalizeTrapData, TRAP_TYPES } from
 export const MAP_COLS = 12
 export const MAP_ROWS = 8
 export const BUILD_BUDGET = 1000
+export const AREA_BUDGET_BONUS = 10
 export const ROOM_COST = 240
 export const TRAP_COST = 100
 export const COMPOUND_DATA_VERSION = 3
@@ -21,8 +22,10 @@ function createBaseMap(rooms = []) {
     rooms,
     passages: [
       { id: 'main-cross-passage', x: 0, y: 4, width: MAP_COLS, height: 1 },
+      { id: 'upper-gallery', x: 0, y: 3, width: MAP_COLS, height: 1 },
       { id: 'entrance-passage', x: 5, y: 5, width: 1, height: 2 },
     ],
+    walls: [],
     entrances: [{ id: 'main-entrance', x: 5, y: MAP_ROWS - 1 }],
     exits: [{ id: 'main-exit', x: 5, y: MAP_ROWS - 1 }],
   }
@@ -32,10 +35,19 @@ export function editorItemsFromCompound(compound) {
   return [...compound.map.rooms, ...compound.items]
 }
 
-export function createCompoundData(items) {
+export function createCompoundData(items, mapData = null) {
+  const baseMap = createBaseMap(items.filter((item) => item.type === 'room').map((room) => ({ ...room })))
+  const map = mapData ? {
+    ...mapData,
+    rooms: baseMap.rooms,
+    passages: mapData.passages.map((passage) => ({ ...passage })),
+    entrances: (mapData.entrances ?? baseMap.entrances).map((point) => ({ ...point })),
+    exits: (mapData.exits ?? baseMap.exits).map((point) => ({ ...point })),
+    walls: (mapData.walls ?? []).map((wall) => ({ ...wall })),
+  } : baseMap
   return {
     version: COMPOUND_DATA_VERSION,
-    map: createBaseMap(items.filter((item) => item.type === 'room').map((room) => ({ ...room }))),
+    map,
     items: items.filter((item) => item.type !== 'room').map((item) => normalizeTrapData(item)),
   }
 }
@@ -88,14 +100,17 @@ function isValidMap(map) {
   const hasCrossPassage = map.passages.some((passage) => passage?.x === 0 && passage?.y === 4 && passage?.width === MAP_COLS && passage?.height === 1)
   const hasEntrancePassage = map.passages.some((passage) => passage?.x === 5 && passage?.y === 5 && passage?.width === 1 && passage?.height === 2)
   const validPassages = map.passages.every((passage) => passage && Number.isInteger(passage.x) && Number.isInteger(passage.y) && Number.isInteger(passage.width) && Number.isInteger(passage.height) && passage.width > 0 && passage.height > 0 && passage.x >= 0 && passage.y >= 0 && passage.x + passage.width <= MAP_COLS && passage.y + passage.height <= MAP_ROWS)
-  return hasMainEntrance && hasMainExit && hasCrossPassage && hasEntrancePassage && validPassages
+  const validWalls = map.walls === undefined || Array.isArray(map.walls) && map.walls.every((wall) => wall && Number.isInteger(wall.x) && Number.isInteger(wall.y) && wall.x >= 0 && wall.y >= 0 && wall.x < MAP_COLS && wall.y < MAP_ROWS)
+  return hasMainEntrance && hasMainExit && hasCrossPassage && hasEntrancePassage && validPassages && validWalls
 }
 
 function normalizeCompound(compound) {
   if (!compound || compound.version !== COMPOUND_DATA_VERSION || !isValidMap(compound.map) || !Array.isArray(compound.items)) return null
+  const passages = compound.map.passages.some((passage) => passage.id === 'upper-gallery') || compound.map.passages.some((passage) => passage.y === 3 && passage.x === 0 && passage.width === MAP_COLS && passage.height === 1)
+    ? compound.map.passages : [...compound.map.passages, { id: 'upper-gallery', x: 0, y: 3, width: MAP_COLS, height: 1 }]
   const normalized = {
     version: COMPOUND_DATA_VERSION,
-    map: { ...compound.map, rooms: compound.map.rooms.map((room) => ({ ...room })), passages: compound.map.passages.map((passage) => ({ ...passage })), entrances: compound.map.entrances.map((point) => ({ ...point })), exits: compound.map.exits.map((point) => ({ ...point })) },
+    map: { ...compound.map, walls: (compound.map.walls ?? []).map((wall) => ({ ...wall })), rooms: compound.map.rooms.map((room) => ({ ...room })), passages: passages.map((passage) => ({ ...passage })), entrances: compound.map.entrances.map((point) => ({ ...point })), exits: compound.map.exits.map((point) => ({ ...point })) },
     items: compound.items.map((item) => item?.type === 'trap' ? normalizeTrapData(item) : item),
   }
   const editorItems = editorItemsFromCompound(normalized)
@@ -188,6 +203,33 @@ export function loadSavedItems(storage) {
 
 export function spentBudget(items) {
   return items.reduce((total, item) => total + (item.free ? 0 : item.type === 'room' ? ROOM_COST : item.price ?? TRAP_COST), 0)
+}
+
+export function calculateBuildBudget(items, passageList = null) {
+  const map = createBaseMap(items.filter((item) => item.type === 'room'))
+  if (passageList) map.passages = passageList
+  const activeTiles = new Set()
+  for (const area of [...map.passages, ...map.rooms]) {
+    const width = area.width ?? area.w
+    const height = area.height ?? area.h
+    for (let y = area.y; y < area.y + height; y += 1) for (let x = area.x; x < area.x + width; x += 1) activeTiles.add(`${x}:${y}`)
+  }
+  const paidRoomCosts = items.filter((item) => item.type === 'room' && !item.free).length * ROOM_COST
+  return BUILD_BUDGET + paidRoomCosts + activeTiles.size * AREA_BUDGET_BONUS
+}
+
+export function placePassageTile(passages, x, y) {
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return { error: 'bounds' }
+  if (passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)) return { error: 'occupied' }
+  const passage = { id: `passage-${x}-${y}`, x, y, width: 1, height: 1 }
+  return { passages: [...passages, passage], passage }
+}
+
+export function removePassageTile(passages, x, y) {
+  const passage = passages.find((item) => x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height)
+  if (!passage) return { error: 'missing' }
+  if (!passage.id?.startsWith('passage-')) return { error: 'protected' }
+  return { passages: passages.filter((item) => item.id !== passage.id), passage }
 }
 
 export function placeRoom(items, x, y, id) {

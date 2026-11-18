@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { BUILD_BUDGET, COMPOUND_DATA_VERSION, COMPOUND_STORAGE_KEY, LEGACY_COMPOUND_STORAGE_KEY, ROOM_COST, STARTER_ITEMS, canReachEntrance, changeTrapType, createCompoundData, isValidLayout, loadCompound, loadSavedItems, moveItem, placeRoom, placeTrap, removeItem, saveCompound, spentBudget, toggleTrapVisibility, updateTrapSettings } from './compound.js'
+import { BUILD_BUDGET, COMPOUND_DATA_VERSION, COMPOUND_STORAGE_KEY, LEGACY_COMPOUND_STORAGE_KEY, ROOM_COST, STARTER_ITEMS, calculateBuildBudget, canReachEntrance, changeTrapType, createCompoundData, isValidLayout, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound, spentBudget, toggleTrapVisibility, updateTrapSettings } from './compound.js'
 import { TRAP_TYPES, TRAP_TYPE_LIST, calculateTrapPrice } from './traps.js'
 
 test('rooms can be built in separate free locations within the map', () => {
@@ -181,7 +181,7 @@ test('versioned data keeps map structure separate from traps and survives save/l
   assert.equal(versioned.items.length, 1)
   assert.equal(versioned.items[0].visibility, 'hidden')
   assert.equal(versioned.map.entrances[0].x, versioned.map.exits[0].x)
-  assert.equal(versioned.map.passages.length, 2)
+  assert.equal(versioned.map.passages.length, 3)
 
   const values = new Map()
   const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) }
@@ -287,4 +287,20 @@ test('switching to the home screen hides the builder instead of discarding its s
   const app = await readFile(new URL('./App.jsx', import.meta.url), 'utf8')
   assert.match(app, /display: screen === 'builder' \? 'block' : 'none'/)
   assert.match(app, /<Builder onHome=\{\(\) => setScreen\('home'\)\}/)
+})
+
+test('construction budget grows with active floor area and added rooms', () => {
+  const baseBudget = calculateBuildBudget(STARTER_ITEMS)
+  const expanded = [...STARTER_ITEMS, { id: 'room-expanded', type: 'room', x: 0, y: 0, w: 2, h: 2, free: false }]
+  assert.equal(baseBudget, 1000 + 36 * 10)
+  assert.equal(calculateBuildBudget(expanded), baseBudget + ROOM_COST + 40)
+})
+
+test('custom passage segments can be extended and removed while protected starter routes remain', () => {
+  const passages = createCompoundData(STARTER_ITEMS).map.passages
+  const added = placePassageTile(passages, 0, 2)
+  assert.equal(added.passages.length, passages.length + 1)
+  assert.equal(placePassageTile(added.passages, 0, 2).error, 'occupied')
+  assert.equal(removePassageTile(added.passages, 0, 2).passages.length, passages.length)
+  assert.equal(removePassageTile(passages, 5, 6).error, 'protected')
 })

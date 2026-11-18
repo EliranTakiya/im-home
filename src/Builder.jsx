@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BUILD_BUDGET, MAP_COLS, MAP_ROWS, ROOM_COST, changeTrapType, loadSavedItems, moveItem, placeRoom, placeTrap, removeItem, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
+import { MAP_COLS, MAP_ROWS, ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
+import { analyzeCompoundPaths } from './navigation.js'
 import './Builder.css'
 
 function MapLegend() {
   return <div className="map-legend" aria-label="מקרא"><span><i className="legend-room" /> חדר</span><span><i className="legend-corridor" /> מסדרון</span><span><i className="legend-wall" /> קיר</span><span><i className="legend-trap" /> מלכודת</span></div>
 }
 
-function CompoundMap({ items, tool, moveId, onCellClick, onItemClick }) {
+function CompoundMap({ items, passages, tool, moveId, onCellClick, onItemClick }) {
   const cells = useMemo(() => Array.from({ length: MAP_ROWS * MAP_COLS }, (_, index) => {
     const x = index % MAP_COLS
     const y = Math.floor(index / MAP_COLS)
     const item = items.find((entry) => x >= entry.x && x < entry.x + entry.w && y >= entry.y && y < entry.y + entry.h)
     const entrance = x === 5 && y === MAP_ROWS - 1
-    const corridor = !item && (y === 4 || (x === 5 && y >= 5))
+    const corridor = !item && passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)
     const gasZone = !item && items.some((entry) => entry.type === 'trap' && entry.trapType === 'gas' && Math.max(Math.abs(x - entry.x), Math.abs(y - entry.y)) <= entry.effect.radius)
     return { x, y, item, entrance, corridor, gasZone }
-  }), [items])
+  }), [items, passages])
 
   return <div className={`map-frame ${tool ? `tool-${tool}` : ''} ${moveId ? 'move-mode' : ''}`}>
     <div className="map-coordinates map-coordinates-top">{Array.from({ length: MAP_COLS }, (_, i) => <span key={i}>{String.fromCharCode(65 + i)}</span>)}</div>
@@ -24,7 +25,7 @@ function CompoundMap({ items, tool, moveId, onCellClick, onItemClick }) {
       <div className="compound-grid" style={{ '--cols': MAP_COLS, '--rows': MAP_ROWS }}>
         {cells.map(({ x, y, item, entrance, corridor, gasZone }) => <button
           key={`${x}-${y}`}
-          className={`map-cell ${item ? `cell-${item.type}` : ''} ${item?.type === 'trap' ? `trap-kind-${item.trapType}` : ''} ${item?.type === 'trap' && item.visibility === 'hidden' ? 'cell-trap-hidden' : ''} ${gasZone ? 'cell-gas-zone' : ''} ${corridor ? 'cell-corridor' : ''} ${entrance ? 'cell-entrance' : ''} ${moveId && item?.id === moveId ? 'cell-selected' : ''} ${!item && !corridor && !entrance && !gasZone ? 'cell-open' : ''}`}
+          className={`map-cell ${item ? `cell-${item.type}` : ''} ${item?.type === 'trap' ? `trap-kind-${item.trapType}` : ''} ${item?.type === 'trap' && item.visibility === 'hidden' ? 'cell-trap-hidden' : ''} ${gasZone ? 'cell-gas-zone' : ''} ${corridor ? 'cell-corridor' : ''} ${entrance ? 'cell-entrance' : ''} ${moveId && item?.id === moveId ? 'cell-selected' : ''} ${!item && !corridor && !entrance && !gasZone ? 'cell-wall' : ''}`}
           aria-label={item ? `${item.name || item.label || 'מלכודת'}${item.type === 'trap' ? item.visibility === 'hidden' ? ', נסתרת' : ', גלויה' : ''}, ${String.fromCharCode(65 + x)}${y + 1}` : gasZone ? 'אזור השפעה של מלכודת גז' : entrance ? 'כניסה ראשית' : corridor ? 'מסדרון, משבצת פנויה' : 'שטח פנוי לבנייה'}
           onClick={() => item ? onItemClick(item) : onCellClick(x, y)}
           type="button"
@@ -39,7 +40,7 @@ function CompoundMap({ items, tool, moveId, onCellClick, onItemClick }) {
   </div>
 }
 
-function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage }) {
+function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage, saveDisabled }) {
   const selectedDefinition = TRAP_TYPES[selectedTrapType]
   const selectedTrapDefinition = selectedItem?.type === 'trap' ? TRAP_TYPES[selectedItem.trapType] : null
 
@@ -47,6 +48,9 @@ function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, select
     <div className="toolbar-heading"><span className="toolbar-kicker">ערכת בנייה</span><h2>מה נבנה?</h2></div>
     <button className={`build-option ${tool === 'room' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'room' ? null : 'room'); setMoveId(null) }}>
       <span className="option-icon room-option-icon">⌂</span><span className="option-copy"><b>חדר חדש</b><small>חדר קטן · 2×2 משבצות</small></span><strong>{ROOM_COST}<small> מטבעות</small></strong>
+    </button>
+    <button className={`build-option ${tool === 'passage' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'passage' ? null : 'passage'); setMoveId(null) }}>
+      <span className="option-icon">┄</span><span className="option-copy"><b>הוספת מסדרון</b><small>הוסיפו משבצות וחברו בין אזורים</small></span><strong>נתיב</strong>
     </button>
     <button className={`build-option ${tool === 'trap' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'trap' ? null : 'trap'); setMoveId(null) }}>
       <span className={`option-icon trap-option-icon trap-kind-${selectedDefinition.id}`}>{selectedDefinition.glyph}</span><span className="option-copy"><b>הוספת מלכודת</b><small>{selectedDefinition.name}</small></span><strong>{calculateTrapPrice({ trapType: selectedDefinition.id, effect: selectedDefinition.defaultEffect })}<small> מטבעות</small></strong>
@@ -70,12 +74,34 @@ function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, select
       <p className="prototype-note">המחיר מתעדכן לפי ההגדרות. הנתונים נשמרים למערכת משחק עתידית; אין כאן עדיין הפעלה של אורחים.</p>
     </> : <p>אפשר להזיז את החדר או להסיר אותו.</p>}</div>}
     <div className="toolbar-hint"><span>ⓘ</span><p>חדרים ומלכודות אפשר להזיז או להסיר. מלכודות אפשר להציב במסדרון ובשטח פנוי.</p></div>
-    <button className="save-button" onClick={onSave}><span>{savedMessage ? '✓ נשמר' : 'שמירת המתחם'}</span><span>⌑</span></button>
+    <button className="save-button" onClick={onSave} disabled={saveDisabled}><span>{savedMessage ? '✓ נשמר' : 'שמירת המתחם'}</span><span>⌑</span></button>
   </aside>
+}
+
+function RouteAnalysis({ analysis }) {
+  const coord = (point) => `${String.fromCharCode(65 + point.x)}${point.y + 1}`
+  return <section className={`route-analysis ${analysis.reachable ? '' : 'route-analysis-invalid'}`} aria-live="polite">
+    <div><span className="map-kicker">ניתוח מסלולים</span><b>{analysis.reachable ? 'היעד נגיש' : 'אין מסלול חוקי ליעד'}</b></div>
+    <div className="route-analysis-stats">
+      <span><b>{analysis.shortestRisk ?? '—'}</b> סיכון במסלול הקצר</span>
+      <span><b>{analysis.safestRisk ?? '—'}</b> סיכון במסלול הבטוח ביותר ({analysis.safestLength ?? 0} צעדים)</span>
+      <span><b>{analysis.routeCountCapped ? `${analysis.routeCount}+` : analysis.routeCount}</b> מסלולים חוקיים</span>
+      <span><b>{analysis.minimumSteps ?? '—'}</b> צעדים מינימליים לביקור</span>
+      <span><b>{analysis.stepBudget}</b> תקציב צעדים לאורח</span>
+      <span><b>{analysis.junctions.length}</b> צמתים</span>
+      <span><b>{analysis.trapsOnShortest ?? 0}/{analysis.trapCount}</b> מלכודות במסלול הקצר</span>
+      <span><b>{analysis.unreachableRooms ?? 0}</b> חדרים מנותקים</span>
+    </div>
+    {analysis.junctions.length > 0 && <p>צמתים: {analysis.junctions.slice(0, 8).map(coord).join(' · ')}{analysis.junctions.length > 8 ? ' …' : ''}</p>}
+    {analysis.easyBypass && <p className="route-analysis-warning">נמצאה דרך קלה שעוקפת את רוב המלכודות. כדאי לבדוק את המסלול הבטוח ביותר ואת פיזור המלכודות.</p>}
+    {!analysis.reachable && <p className="route-analysis-warning">המתחם לא יישמר עד שתיפתח דרך חוקית מהכניסה ליעד.</p>}
+  </section>
 }
 
 export default function Builder({ onHome }) {
   const [items, setItems] = useState(() => loadSavedItems())
+  const [mapTemplate] = useState(() => loadCompound().map)
+  const [passages, setPassages] = useState(() => mapTemplate.passages)
   const [tool, setTool] = useState(null)
   const [moveId, setMoveId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
@@ -83,8 +109,11 @@ export default function Builder({ onHome }) {
   const [savedMessage, setSavedMessage] = useState(false)
   const [notice, setNotice] = useState('')
   const selectedItem = items.find((item) => item.id === selectedId)
+  const compound = useMemo(() => createCompoundData(items, { ...mapTemplate, passages }), [items, mapTemplate, passages])
+  const routeAnalysis = useMemo(() => analyzeCompoundPaths(compound), [compound])
   const spent = spentBudget(items)
-  const remaining = BUILD_BUDGET - spent
+  const budget = calculateBuildBudget(items, passages)
+  const remaining = budget - spent
 
   useEffect(() => {
     if (!notice) return undefined
@@ -109,10 +138,29 @@ export default function Builder({ onHome }) {
       return
     }
     if (tool === 'trap') {
+      const mapTile = compound.map.rooms.some((room) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h) || passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)
+      if (!mapTile) { setNotice('אפשר להציב מלכודת בחדר או במסדרון בלבד. בנו מעבר תחילה.'); return }
       if (remaining < TRAP_TYPES[selectedTrapType].price) { setNotice('אין מספיק תקציב למלכודת נוספת.'); return }
       const result = placeTrap(items, x, y, `trap-${Date.now()}`, selectedTrapType)
       if (result.error) { setNotice(result.error === 'route' ? 'הצבה זו מונעת מעבר עוקף לכניסה. בחרו מקום אחר.' : 'בחרו מסדרון או שטח פנוי, והשאירו את הכניסה פתוחה.') ; return }
       setItems(result.items); setSelectedId(result.item.id); setTool(null); setNotice('נוספה מלכודת. אפשר לזהות אותה ולעקוף אותה.')
+      return
+    }
+    if (tool === 'passage') {
+      const existingPassage = compound.map.passages.find((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)
+      if (existingPassage) {
+        const removal = removePassageTile(compound.map.passages, x, y)
+        if (removal.passages) {
+          setPassages(removal.passages)
+          setNotice('מקטע המסדרון הוסר. בדקו שהחדרים עדיין מחוברים לכניסה.')
+        } else setNotice('זהו מעבר בסיסי ונדרש במתחם. אפשר לערוך את המקטעים הנוספים.')
+        return
+      }
+      if (compound.map.rooms.some((room) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h)) { setNotice('המשבצת כבר נמצאת בתוך חדר.'); return }
+      const result = placePassageTile(compound.map.passages, x, y)
+      if (result.error) { setNotice('אי אפשר להוסיף מסדרון במשבצת הזו.'); return }
+      setPassages(result.passages)
+      setNotice('נוספה משבצת מסדרון. המשיכו לחבר אותה לרשת המעברים.')
     }
   }
 
@@ -140,34 +188,36 @@ export default function Builder({ onHome }) {
 
   function updateSelectedTrapSettings(id, patch) {
     const updatedItems = updateTrapSettings(items, id, patch)
-    if (spentBudget(updatedItems) > BUILD_BUDGET) { setNotice('ההגדרה חורגת מהתקציב הפנוי. הסירו פריט או בחרו השפעה זולה יותר.'); return }
+    if (spentBudget(updatedItems) > calculateBuildBudget(updatedItems, passages)) { setNotice('ההגדרה חורגת מהתקציב הפנוי. הסירו פריט או בחרו השפעה זולה יותר.'); return }
     setItems(updatedItems)
   }
 
   function updateSelectedTrapType(id, trapType) {
     const updatedItems = changeTrapType(items, id, trapType)
-    if (spentBudget(updatedItems) > BUILD_BUDGET) { setNotice('אין מספיק תקציב לסוג המלכודת הזה.'); return }
+    if (spentBudget(updatedItems) > calculateBuildBudget(updatedItems, passages)) { setNotice('אין מספיק תקציב לסוג המלכודת הזה.'); return }
     setItems(updatedItems)
     setSelectedTrapType(trapType)
     setNotice('סוג המלכודת והמחיר עודכנו.')
   }
 
   function saveCompound() {
-    try { saveCompoundData(items); setSavedMessage(true); setNotice('המתחם נשמר בדפדפן הזה.') }
+    if (!routeAnalysis.reachable) { setNotice('אי אפשר לשמור מתחם ללא מסלול חוקי ליעד.'); return }
+    try { saveCompoundData(compound); setSavedMessage(true); setNotice('המתחם נשמר בדפדפן הזה.') }
     catch { setNotice('שמירה נכשלה. בדקו שהדפדפן מאפשר אחסון מקומי.') }
     window.setTimeout(() => setSavedMessage(false), 2200)
   }
 
   return <main className="builder-screen" dir="rtl">
     <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></header>
-    <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><div className="budget-card"><span>תקציב בנייה</span><b>{remaining}<small> / {BUILD_BUDGET}</small></b><div className="budget-track"><i style={{ width: `${Math.max(0, remaining / BUILD_BUDGET * 100)}%` }} /></div><small className="budget-note">{spent} מטבעות נוצלו · תקציב אבטיפוס</small></div></section>
+    <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><div className="budget-card"><span>תקציב בנייה · דינמי</span><b>{remaining}<small> / {budget}</small></b><div className="budget-track"><i style={{ width: `${Math.max(0, remaining / budget * 100)}%` }} /></div><small className="budget-note">{spent} מטבעות נוצלו · התקציב גדל עם השטח הפעיל</small></div></section>
     <section className="builder-layout">
       <div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
-        <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'trap' ? 'בחרו משבצת במסדרון או בשטח פנוי' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-        <CompoundMap items={items} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} />
+        <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
+        <CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} />
         <div className="map-panel-foot"><MapLegend /><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
+        <RouteAnalysis analysis={routeAnalysis} />
       </div>
-      <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} />
+      <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} saveDisabled={!routeAnalysis.reachable} />
     </section>
     <div className="builder-footer"><span>המפה נשמרת מקומית בדפדפן</span><span>לכל הגנה יש דרך להתמודד איתה <i /></span><span>אב טיפוס 0.2</span></div>
     {notice && <div className="builder-notice" role="status">{notice}</div>}

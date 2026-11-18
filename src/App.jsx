@@ -110,7 +110,7 @@ function App() {
       <Builder onHome={() => setScreen('home')} />
     </div>
     {visit && <div style={{ display: screen === 'visit' ? 'block' : 'none' }} aria-hidden={screen !== 'visit'}>
-      <VisitGame key={visit.session.id} compound={visit.compound} initialVisit={visit.session} onHome={returnHome} onRestart={restartVisit} />
+      <VisitGame key={visit.session.id} compound={visit.compound} initialVisit={visit.session} onHome={returnHome} onRestart={restartVisit} isActive={screen === 'visit'} />
     </div>}
     {screen === 'perks' && visitDraft && <PerkSelection key={visitDraft.id} visitId={visitDraft.id} onStart={continueToEquipment} onCancel={cancelVisitDraft} />}
     {screen === 'equipment' && visitDraft && <EquipmentSelection onStart={startVisitWithEquipment} onCancel={() => setScreen('perks')} />}

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createCompoundData, STARTER_ITEMS } from './compound.js'
 import { createTrapData } from './traps.js'
-import { ACTIVE_VISIT_KEY, advanceVisit, clearActiveVisit, createVisit, findPath, loadActiveVisit, loadVisitResults, resolvePendingTrap, saveActiveVisit, saveVisitResult, VISIT_RESULTS_KEY } from './visitEngine.js'
+import { ACTIVE_VISIT_KEY, advanceVisit, calculateVisitScore, clearActiveVisit, createVisit, findPath, loadActiveVisit, loadVisitResults, resolvePendingTrap, saveActiveVisit, saveVisitResult, VISIT_RESULTS_KEY } from './visitEngine.js'
 
 function compoundWithTrap(type, patch = {}) {
   const trap = { id: 'trap-test', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData(type), ...patch }
@@ -43,6 +43,7 @@ test('electric trap applies configured damage and one turn of stun once', () => 
   const visit = createVisit(compound, { id: 'electric-hit' })
   const result = until((state) => state.trapStates['trap-test'].triggered, compound, visit)
   assert.equal(result.guest.health, 80)
+  assert.equal(result.pendingAction, null)
   assert.equal(result.guest.damageTaken, 20)
   assert.equal(result.guest.stunTurnsRemaining, 1)
   const next = advanceVisit(compound, result)
@@ -110,14 +111,14 @@ test('active gas damages once per turn, expires, and does not reactivate', () =>
 })
 
 test('a guest entering gas on its final active turn still takes that turn’s damage', () => {
-  const compound = compoundWithTrap('gas', { x: 5, y: 2, effect: { radius: 1, strength: 1, durationTurns: 2 } })
+  const compound = compoundWithTrap('gas', { x: 5, y: 3, effect: { radius: 1, strength: 1, durationTurns: 2 } })
   const visit = createVisit(compound, { id: 'last-gas-turn' })
-  visit.guest.position = { x: 5, y: 3 }
+  visit.guest.position = { x: 5, y: 4 }
   visit.trapStates['trap-test'].triggered = true
   visit.trapStates['trap-test'].gasTurnsRemaining = 1
-  const next = advanceVisit(compound, visit)
+  const next = advanceVisit(compound, visit, 'forward')
   assert.equal(next.guest.position.x, 5)
-  assert.equal(next.guest.position.y, 2)
+  assert.equal(next.guest.position.y, 3)
   assert.equal(next.guest.health, 90)
   assert.equal(next.trapStates['trap-test'].gasTurnsRemaining, 0)
 })
@@ -175,6 +176,7 @@ test('active visits survive reload with timers, exposure, events, and a private 
   visit.guest.progress = 35
   visit.guest.gasExposure = ['trap-test']
   visit.guest.gasTurnsRemaining = 2
+  visit.guest.facing = 'east'
   visit.trapStates['trap-test'].triggered = true
   visit.trapStates['trap-test'].gasTurnsRemaining = 2
   visit.events.push({ turn: 4, type: 'damage', trapId: 'trap-test', amount: 10 })
@@ -184,6 +186,7 @@ test('active visits survive reload with timers, exposure, events, and a private 
   saveActiveVisit(compound, visit, storage)
   const loaded = loadActiveVisit(storage)
   assert.deepEqual(loaded.session, visit)
+  assert.equal(loaded.session.guest.facing, 'east')
   assert.deepEqual(loaded.compound, compound)
   assert.equal(records.get('im-home-compound'), 'untouched-compound-data')
   loaded.session.guest.health = 1
@@ -219,4 +222,73 @@ test('terminal visits are not persisted as active and abandonment is not a resul
   const completed = until((state) => state.outcome !== 'active', compound, createVisit(compound, { id: 'completed-visit' }))
   saveActiveVisit(compound, completed, storage)
   assert.equal(loadActiveVisit(storage), null)
+})
+
+test('relative directional movement respects facing and walls without charging blocked inputs', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  const initial = createVisit(compound, { id: 'directional' })
+  const blockedAtEdge = advanceVisit(compound, initial, 'right')
+  assert.equal(blockedAtEdge, initial)
+  assert.equal(initial.guest.stepsTaken, 0)
+  const forward = advanceVisit(compound, initial, 'forward')
+  assert.deepEqual(forward.guest.position, { x: 5, y: 6 })
+  assert.equal(forward.guest.stepsTaken, 1)
+  const blockedWall = advanceVisit(compound, forward, 'right')
+  assert.equal(blockedWall, forward)
+  assert.equal(forward.guest.stepsTaken, 1)
+  const anotherForward = advanceVisit(compound, forward, 'forward')
+  assert.deepEqual(anotherForward.guest.position, { x: 5, y: 5 })
+  assert.equal(anotherForward.guest.stepsTaken, 2)
+})
+
+test('forward and backward preserve facing while left and right turn and move relative to it', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  const initial = createVisit(compound, { id: 'relative-controls' })
+  initial.guest.position = { x: 5, y: 4 }
+
+  const right = advanceVisit(compound, initial, 'right')
+  assert.deepEqual(right.guest.position, { x: 6, y: 4 })
+  assert.equal(right.guest.facing, 'east')
+
+  const forward = advanceVisit(compound, right, 'forward')
+  assert.deepEqual(forward.guest.position, { x: 7, y: 4 })
+  assert.equal(forward.guest.facing, 'east')
+
+  const backward = advanceVisit(compound, forward, 'backward')
+  assert.deepEqual(backward.guest.position, { x: 6, y: 4 })
+  assert.equal(backward.guest.facing, 'east')
+
+  const left = advanceVisit(compound, backward, 'left')
+  assert.deepEqual(left.guest.position, { x: 6, y: 3 })
+  assert.equal(left.guest.facing, 'north')
+})
+
+test('step budget emits each warning once and ends the visit without resetting progress', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  let visit = createVisit(compound, { id: 'step-limit' })
+  visit.stepBudget = 4
+  visit = advanceVisit(compound, visit, 'forward')
+  visit = advanceVisit(compound, visit, 'forward')
+  visit = advanceVisit(compound, visit, 'forward')
+  assert.ok(visit.events.some((entry) => entry.type === 'step-warning' && entry.threshold === 0.75))
+  visit = advanceVisit(compound, visit, 'forward')
+  assert.equal(visit.outcome, 'stalled')
+  assert.equal(visit.guest.stepsTaken, 4)
+  assert.ok(visit.events.some((entry) => entry.type === 'step-warning' && entry.threshold === 0.9))
+  assert.equal(visit.events.filter((entry) => entry.type === 'step-warning' && entry.threshold === 0.75).length, 1)
+  assert.equal(advanceVisit(compound, visit, 'forward'), visit)
+})
+
+test('visit score rewards efficiency, remaining health, traps, gear, and completion without repeat awards', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  const visit = createVisit(compound, { id: 'score-once' })
+  visit.outcome = 'completed'
+  visit.guest.health = 80
+  visit.guest.stepsTaken = visit.minimumSteps
+  visit.trapStates['score-trap'] = { triggered: true }
+  visit.equipment.tools['test-tool'] = { uses: [{ actionId: 'unique-use' }, { actionId: 'unique-use' }] }
+  const score = calculateVisitScore(visit)
+  assert.equal(score.total, score.efficiency + score.survival + score.handledTraps + score.equipment + score.completion)
+  assert.equal(score.completion, 500)
+  assert.equal(score.equipment, 50)
 })
