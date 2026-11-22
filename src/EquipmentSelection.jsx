@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { EQUIPMENT_CATALOG, loadEquipmentStore, saveEquipmentStore, selectTools, validateToolSelection } from './equipment.js'
 import './EquipmentSelection.css'
 
-export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'שלב שני', continueLabel = 'שמירת התיק וכניסה לבית' }) {
+export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'שלב שני', continueLabel = 'שמירת התיק וכניסה לבית', startError = '' }) {
   const [store, setStore] = useState(() => loadEquipmentStore())
   const [selected, setSelected] = useState(store.selectedToolIds)
   const [notice, setNotice] = useState('')
@@ -44,6 +44,7 @@ export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'ש�
       </article>
     })}</section>
     {notice && <p className="equipment-notice" role="status">{notice}</p>}
+    {startError && <p className="equipment-notice" role="alert">{startError}</p>}
     <footer><span>המלכודות יופעלו לפי חוקי הביקור הקיימים; הכלי אינו מנטרל אותן אוטומטית.</span><button onClick={start}>{continueLabel} ←</button></footer>
   </main>
 }

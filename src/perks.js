@@ -46,7 +46,7 @@ export const PERK_CATALOG = Object.freeze([
     description: 'מוסיף 8 צעדים לביקור לאחר שנותרו 25% ממכסת הצעדים. הפעלה אחת לביקור.',
     effect: 'extend-step-budget', effectConfig: { amount: 8, triggerRemainingRatio: 0.25 },
     status: 'implemented', unlocked: false, enabled: true,
-    unlockRequirement: 'השלמת ביקורים מוצלחים וצבירת ניסיון אישי', unlockDescription: 'ייפתח דרך ביקורים מוצלחים והתקדמות אישית.',
+    unlockRequirement: 'השלימו בית אתגר אחד עם מדליה כלשהי.', unlockDescription: 'ייפתח לאחר השלמת בית אתגר ראשון.',
     usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
   }),
   Object.freeze({
@@ -54,7 +54,7 @@ export const PERK_CATALOG = Object.freeze([
     description: 'מתריע כאשר מלכודת שלא הופעלה נמצאת עד שתי משבצות מהאורח, בלי לחשוף את מיקומה.',
     effect: 'nearby-trap-warning', effectConfig: { radius: 2, duration: 'visit' },
     status: 'implemented', unlocked: false, enabled: true,
-    unlockRequirement: 'התקדמות אישית והשלמת אתגרים', unlockDescription: 'ייפתח דרך התקדמות אישית והשלמת אתגרים.',
+    unlockRequirement: 'השיגו Silver או Gold בשני בתי אתגר שונים.', unlockDescription: 'ייפתח לאחר הישג Silver ומעלה בשני מתחמים שונים.',
     usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
   }),
   Object.freeze({
@@ -62,7 +62,7 @@ export const PERK_CATALOG = Object.freeze([
     description: 'סופג במלואה את הפגיעה הבאה ממלכודת אחת במהלך הביקור.',
     effect: 'absorb-next-trap-hit', effectConfig: { hits: 1 },
     status: 'implemented', unlocked: false, enabled: true,
-    unlockRequirement: 'הישגים והשלמת ביקורים קשים', unlockDescription: 'ייפתח דרך הישגים וביקורים קשים.',
+    unlockRequirement: 'השיגו Gold בבית Expert ברמת קושי Hard.', unlockDescription: 'ייפתח לאחר השלמת Expert ברמת Hard עם מדליית Gold.',
     usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
   }),
 ])
@@ -108,6 +108,27 @@ export function listPerksForRole(role) {
   return PERK_CATALOG.filter((perk) => perk.role === role && perk.enabled)
 }
 
+export function syncGuestChallengePerkRewards(currentStore, challengeProgress, profileId = 'local-guest') {
+  const validHouses = new Set(['beginner-house', 'advanced-house', 'expert-house'])
+  const attempts = Array.isArray(challengeProgress?.history) ? challengeProgress.history.filter((attempt) => validHouses.has(attempt.houseId)) : []
+  const silverHouseIds = new Set(attempts.filter((attempt) => ['silver', 'gold'].includes(attempt.medal)).map((attempt) => attempt.houseId))
+  const expertHardGold = attempts.some((attempt) => attempt.houseId === 'expert-house' && attempt.medal === 'gold' && attempt.difficulty === 'hard')
+  const eligiblePerks = []
+  if (attempts.some((attempt) => attempt.medal === 'gold' || attempt.medal === 'silver' || attempt.medal === 'bronze')) eligiblePerks.push(['extra-steps', 'first-challenge-completion'])
+  if (silverHouseIds.size >= 2) eligiblePerks.push(['trap-warning', 'silver-in-two-houses'])
+  if (expertHardGold) eligiblePerks.push(['emergency-shield', 'expert-hard-gold'])
+
+  let store = normalizePerkStore(currentStore)
+  const grants = []
+  for (const [perkId, achievementId] of eligiblePerks) {
+    const result = grantPerk(store, { profileId, role: 'guest', perkId, source: 'achievement', grantId: `guest-challenge:${achievementId}:${profileId}`, limitKind: 'permanent', remainingUses: null })
+    if (!result.ok) continue
+    store = result.store
+    if (!result.duplicate) grants.push({ perkId, achievementId })
+  }
+  return { store, grants }
+}
+
 export function grantPerk(currentStore, { profileId, role, perkId, source, grantId = `${source}:${role}:${profileId}:${perkId}`, limitKind = 'permanent', remainingUses = null }) {
   if (!validRole(role) || typeof profileId !== 'string' || !profileId || !definitionFor(role, perkId)) return { ok: false, error: 'role-or-perk-mismatch', store: currentStore }
   if (!PERK_GRANT_SOURCES.includes(source)) return { ok: false, error: 'unsupported-grant-source', store: currentStore }
@@ -143,7 +164,7 @@ export function validatePerkSelection(storeValue, { profileId, role, selectedIds
     const definition = definitionFor(role, perkId)
     if (!definition) return { ok: false, error: 'role-or-perk-mismatch' }
     if (!definition.enabled || definition.status !== 'implemented') return { ok: false, error: 'perk-not-implemented' }
-    if (!DEVELOPMENT_MODE && !hasRemainingUse(profile?.inventory?.[perkId])) return { ok: false, error: 'perk-locked-or-exhausted' }
+    if (!(DEVELOPMENT_MODE && role === 'owner') && !hasRemainingUse(profile?.inventory?.[perkId])) return { ok: false, error: 'perk-locked-or-exhausted' }
   }
   return { ok: true, selectedIds: [...selectedIds] }
 }
@@ -194,13 +215,13 @@ export function activatePerk(currentStore, currentVisitPerks, { visitId, profile
   const profile = store.profiles[profileKey(role, profileId)]
   const inventory = profile?.inventory?.[perkId]
   const visitChargeUsed = inventory?.limitKind === 'visits' && store.activationLedger.some((entry) => entry.visitId === visitId && entry.profileId === profileId && entry.role === role && entry.perkId === perkId)
-  if (!guardianOwner && !DEVELOPMENT_MODE && !hasRemainingUse(inventory) && !visitChargeUsed) return { ok: false, error: 'perk-locked-or-exhausted', store: currentStore, visitPerks: currentVisitPerks }
+  if (!guardianOwner && !(DEVELOPMENT_MODE && role === 'owner') && !hasRemainingUse(inventory) && !visitChargeUsed) return { ok: false, error: 'perk-locked-or-exhausted', store: currentStore, visitPerks: currentVisitPerks }
   if ((visitPerks.activations[role][perkId] ?? 0) >= definition.maxActivationsPerVisit) return { ok: false, error: 'visit-activation-limit', store: currentStore, visitPerks: currentVisitPerks }
 
-  if (!guardianOwner && !DEVELOPMENT_MODE && (inventory.limitKind === 'activations' || inventory.limitKind === 'visits' && !visitChargeUsed)) inventory.remainingUses -= 1
+  if (!guardianOwner && !(DEVELOPMENT_MODE && role === 'owner') && (inventory.limitKind === 'activations' || inventory.limitKind === 'visits' && !visitChargeUsed)) inventory.remainingUses -= 1
   visitPerks.active[role].push(perkId)
   visitPerks.activations[role][perkId] = (visitPerks.activations[role][perkId] ?? 0) + 1
-  const entry = { activationId, visitId, profileId, role, perkId, activatedAt: new Date().toISOString(), remainingUses: guardianOwner || DEVELOPMENT_MODE ? null : inventory.remainingUses }
+  const entry = { activationId, visitId, profileId, role, perkId, activatedAt: new Date().toISOString(), remainingUses: guardianOwner || DEVELOPMENT_MODE && role === 'owner' ? null : inventory.remainingUses }
   store.activationLedger.push(entry)
   visitPerks.events.push({ ...entry, type: 'perk-activated' })
   return { ok: true, duplicate: false, store, visitPerks, inventory: { ...inventory } }

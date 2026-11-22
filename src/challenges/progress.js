@@ -150,13 +150,14 @@ export function loadActiveChallenge(storage = globalThis.localStorage) {
     const record = JSON.parse(storage?.getItem(ACTIVE_CHALLENGE_KEY) ?? 'null')
     const house = getChallengeHouse(record?.houseId)
     if (record?.version !== 1 || !house || record.houseVersion !== house.version || record.visit?.outcome !== 'active' || record.compound?.version !== 3) return null
+    if ((record.visit.visitType && record.visit.visitType !== 'challenge') || (record.visit.mapSource && record.visit.mapSource !== 'challenge-catalog') || (record.visit.houseId && record.visit.houseId !== record.houseId)) return null
     return record
   } catch { return null }
 }
 
 export function saveActiveChallenge({ houseId, compound, visit }, storage = globalThis.localStorage) {
   const house = getChallengeHouse(houseId)
-  if (!house || !compound || !visit || visit.outcome !== 'active') return false
+  if (!house || !compound || !visit || visit.outcome !== 'active' || visit.visitType !== 'challenge' || visit.mapSource !== 'challenge-catalog' || visit.houseId !== houseId) return false
   try {
     storage?.setItem(ACTIVE_CHALLENGE_KEY, JSON.stringify({ version: 1, houseId, houseVersion: house.version, compound: structuredClone(compound), visit: structuredClone(visit), savedAt: new Date().toISOString() }))
     return Boolean(storage)

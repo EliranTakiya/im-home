@@ -217,6 +217,37 @@ test('legacy active visit saves remain resumable and cannot restore a stale Guar
   assert.equal(values.has(ACTIVE_VISIT_KEY), true)
 })
 
+test('ordinary active-visit storage rejects challenge sessions and failed writes preserve the previous save', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  const prior = createVisit(compound, { id: 'prior-ordinary', visitType: 'regular', mapSource: 'player-house', houseId: 'remote-old' })
+  const challenge = createVisit(compound, { id: 'challenge-must-stay-separate', visitType: 'challenge', mapSource: 'challenge-catalog', houseId: 'beginner-house' })
+  const values = new Map()
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) }
+  assert.equal(saveActiveVisit(compound, prior, storage), true)
+  const savedPrior = values.get(ACTIVE_VISIT_KEY)
+  assert.equal(saveActiveVisit(compound, challenge, storage), false)
+  assert.equal(values.get(ACTIVE_VISIT_KEY), savedPrior)
+
+  const failingStorage = { getItem: storage.getItem, setItem: () => { throw new Error('quota exceeded') } }
+  const next = createVisit(compound, { id: 'new-ordinary', visitType: 'player-house', mapSource: 'player-house', houseId: 'remote-new' })
+  assert.equal(saveActiveVisit(compound, next, failingStorage), false)
+  assert.equal(values.get(ACTIVE_VISIT_KEY), savedPrior)
+  assert.equal(loadActiveVisit(storage).session.id, 'prior-ordinary')
+  assert.equal(saveActiveVisit(compound, next, storage), true)
+  const restoredNewHouseVisit = loadActiveVisit(storage).session
+  assert.equal(restoredNewHouseVisit.visitType, 'player-house')
+  assert.equal(restoredNewHouseVisit.mapSource, 'player-house')
+  assert.equal(restoredNewHouseVisit.houseId, 'remote-new')
+})
+
+test('invalid ordinary visit records are rejected without deleting the stored data', () => {
+  const invalidRecord = JSON.stringify({ version: 1, compound: { version: 3 }, visit: { id: 'wrong-mode', outcome: 'active', visitType: 'challenge', mapSource: 'challenge-catalog' } })
+  const values = new Map([[ACTIVE_VISIT_KEY, invalidRecord]])
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) }
+  assert.equal(loadActiveVisit(storage), null)
+  assert.equal(values.get(ACTIVE_VISIT_KEY), invalidRecord)
+})
+
 test('resuming a saved gas visit continues its timer and applies exactly one hit that turn', () => {
   const records = new Map()
   const storage = { getItem: (key) => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: (key) => records.delete(key) }

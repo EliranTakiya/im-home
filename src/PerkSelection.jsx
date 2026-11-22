@@ -46,7 +46,7 @@ export default function PerkSelection({ visitId, onStart, onCancel, challengeMod
 
   return <main className="perk-selection-shell" dir="rtl">
     <header className="perk-selection-header"><button className="perk-back" onClick={onCancel}>← חזרה</button><div><span>{challengeMode ? `בית אתגר · ${stepLabel}` : 'הכנות לביקור · בחירה נפרדת לכל צד'}</span><h1>בחרו Perks</h1></div><span className="perk-cap">מכסה: עד {MAX_SELECTED} יכולות לכל צד</span></header>
-    {DEVELOPMENT_MODE && <div className="perk-development-banner" role="status">Development Mode – כל היכולות פתוחות וזמינות לבחירה לצורכי בדיקות.</div>}
+    {DEVELOPMENT_MODE && <div className="perk-development-banner" role="status">Development Mode – יכולות Host פתוחות לבדיקות; פתיחת Guest Perks עדיין תלויה בהתקדמות.</div>}
     <section className="perk-selection-layout">
       {roles.length > 1 && <div className="perk-role-tabs" role="tablist" aria-label="בחירת תפקיד">
         {roles.map((itemRole, index) => <button key={itemRole} role="tab" aria-selected={role === itemRole} className={role === itemRole ? 'perk-tab-active' : ''} onClick={() => setRole(itemRole)}><span>{String(index + 1).padStart(2, '0')}</span><b>{itemRole === 'owner' ? 'בעל המתחם' : 'האורח'}</b><small>{itemRole === 'owner' ? 'הגנה ומידע על המתחם' : 'התקפה והישרדות'}</small></button>)}
@@ -55,7 +55,7 @@ export default function PerkSelection({ visitId, onStart, onCancel, challengeMod
         <div className="perk-list-heading"><div><span>{role === 'owner' ? 'היכולות של בעל המתחם' : 'היכולות של האורח'}</span><h2>{role === 'owner' ? 'הגנה ומידע' : 'התמודדות והישרדות'}</h2></div><b>{currentSelection.length} / {MAX_SELECTED}</b></div>
         {perks.length ? <div className="perk-cards">{perks.map((perk) => {
           const inventory = profile?.inventory?.[perk.id]
-          const available = DEVELOPMENT_MODE || inventory?.owned && (inventory.remainingUses === null || inventory.remainingUses > 0)
+          const available = DEVELOPMENT_MODE && role === 'owner' || inventory?.owned && (inventory.remainingUses === null || inventory.remainingUses > 0)
           const selected = currentSelection.includes(perk.id)
           return <article key={perk.id} className={`perk-card ${selected ? 'perk-card-selected' : ''} ${!available ? 'perk-card-locked' : ''}`}>
             <div className="perk-card-icon">{perk.effect === 'reveal-hidden-traps' ? '⌖' : '✦'}</div>

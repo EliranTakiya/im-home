@@ -366,6 +366,7 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
     const record = JSON.parse(storage?.getItem(ACTIVE_VISIT_KEY) ?? 'null')
     if (record?.version !== 1 || record.visit?.outcome !== 'active' || !record.compound || record.compound.version !== 3) return null
     const session = record.visit
+    if ((session.visitType && !['regular', 'player-house'].includes(session.visitType)) || session.mapSource === 'challenge-catalog') return null
     const computedMinimum = minimumVisitSteps(record.compound).steps
     session.minimumSteps ??= session.plannedSteps ?? computedMinimum
     session.plannedSteps ??= session.minimumSteps
@@ -373,7 +374,7 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
     session.stepWarnings ??= []
     session.guest.facing ??= 'north'
     session.ownerMode = session.ownerMode === 'human' ? 'human' : 'absent'
-    session.visitType = 'regular'
+    session.visitType = session.visitType === 'player-house' ? 'player-house' : 'regular'
     session.mapSource ??= 'legacy-local-compound'
     session.houseId ??= null
     delete session.guardian
@@ -387,7 +388,7 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
 }
 
 export function saveActiveVisit(compound, visit, storage = globalThis.localStorage) {
-  if (!compound || !visit || visit.outcome !== 'active') return false
+  if (!compound || !visit || visit.outcome !== 'active' || visit.mapSource === 'challenge-catalog' || (visit.visitType && !['regular', 'player-house'].includes(visit.visitType))) return false
   try {
     storage?.setItem(ACTIVE_VISIT_KEY, JSON.stringify({ version: 1, compound: copy(compound), visit: copy(visit), savedAt: new Date().toISOString() }))
     return Boolean(storage)

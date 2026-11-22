@@ -97,7 +97,7 @@ test('regular saves discard automatic Guardian state while Challenge House saves
   assert.equal('guardian' in humanReload, false)
 
   const challengeCompound = createChallengeCompound('expert-house')
-  const challengeVisit = createVisit(challengeCompound, { id: 'challenge-guardian-save-visit', visitType: 'challenge', ownerMode: 'ai', perkSelection: { owner: ['trap-reinforcement', 'spectator-control'] } })
+  const challengeVisit = createVisit(challengeCompound, { id: 'challenge-guardian-save-visit', visitType: 'challenge', mapSource: 'challenge-catalog', houseId: 'expert-house', ownerMode: 'ai', perkSelection: { owner: ['trap-reinforcement', 'spectator-control'] } })
   challengeVisit.guardian = guardian
   assert.equal(saveActiveChallenge({ houseId: 'expert-house', compound: challengeCompound, visit: challengeVisit }, storage), true)
   const challengeReload = loadActiveChallenge(storage)

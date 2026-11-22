@@ -13,6 +13,7 @@ import {
   projectTrapsForViewer,
   savePerkStore,
   saveVisitPerkSelection,
+  syncGuestChallengePerkRewards,
   validatePerkSelection,
   PERK_CATALOG,
 } from './perks.js'
@@ -53,6 +54,48 @@ test('locked perks need an achievement, challenge, or reward grant; payments rem
   assert.equal(duplicateReward.inventory.remainingUses, 1)
 })
 
+test('guest challenge perks unlock only from their recorded milestones and grants are idempotent', () => {
+  const empty = createPerkStore()
+  const locked = syncGuestChallengePerkRewards(empty, { history: [] })
+  assert.equal(locked.grants.length, 0)
+  for (const perkId of ['extra-steps', 'trap-warning', 'emergency-shield']) {
+    assert.equal(validatePerkSelection(locked.store, { profileId: 'local-guest', role: 'guest', selectedIds: [perkId], maxSelected: 2 }).error, 'perk-locked-or-exhausted')
+  }
+
+  const firstWin = syncGuestChallengePerkRewards(empty, { history: [{ houseId: 'beginner-house', medal: 'bronze' }] })
+  assert.deepEqual(firstWin.grants.map(({ perkId }) => perkId), ['extra-steps'])
+  assert.equal(validatePerkSelection(firstWin.store, { profileId: 'local-guest', role: 'guest', selectedIds: ['extra-steps'], maxSelected: 2 }).ok, true)
+  assert.equal(firstWin.store.profiles['owner:local-guest'], undefined)
+
+  const twoHouseSilver = syncGuestChallengePerkRewards(firstWin.store, { history: [
+    { houseId: 'beginner-house', medal: 'silver' },
+    { houseId: 'advanced-house', medal: 'gold' },
+  ] })
+  assert.deepEqual(twoHouseSilver.grants.map(({ perkId }) => perkId), ['trap-warning'])
+  assert.equal(validatePerkSelection(twoHouseSilver.store, { profileId: 'local-guest', role: 'guest', selectedIds: ['trap-warning'], maxSelected: 2 }).ok, true)
+
+  const expertGoldNormal = syncGuestChallengePerkRewards(twoHouseSilver.store, { history: [
+    { houseId: 'beginner-house', medal: 'silver' },
+    { houseId: 'advanced-house', medal: 'gold' },
+    { houseId: 'expert-house', medal: 'gold', difficulty: 'normal' },
+  ] })
+  assert.equal(expertGoldNormal.grants.some(({ perkId }) => perkId === 'emergency-shield'), false)
+
+  const expertGold = syncGuestChallengePerkRewards(twoHouseSilver.store, { history: [
+    { houseId: 'beginner-house', medal: 'silver' },
+    { houseId: 'advanced-house', medal: 'gold' },
+    { houseId: 'expert-house', medal: 'gold', difficulty: 'hard' },
+  ] })
+  assert.deepEqual(expertGold.grants.map(({ perkId }) => perkId), ['emergency-shield'])
+  const repeated = syncGuestChallengePerkRewards(expertGold.store, { history: [
+    { houseId: 'beginner-house', medal: 'silver' },
+    { houseId: 'advanced-house', medal: 'gold' },
+    { houseId: 'expert-house', medal: 'gold', difficulty: 'hard' },
+  ] })
+  assert.equal(repeated.grants.length, 0)
+  assert.equal(repeated.store.grantLedger.length, 3)
+})
+
 test('selection limit is enforced separately for each role', () => {
   const store = reward(createPerkStore()).store
   const selected = selectForVisit(store, 'selection-limit')
@@ -81,6 +124,24 @@ test('activation consumes a visit charge once and cannot be reused by refresh or
   assert.equal(records.has(PERK_STORAGE_KEY), true)
   assert.equal(activatePerk(restoredStore, activated.visitPerks, { ...activation, activationId: 'visit-use:owner:trap-map:2' }).error, 'visit-activation-limit')
   assert.equal(validatePerkSelection(restoredStore, { profileId: 'owner-1', role: 'owner', selectedIds: ['trap-map'], maxSelected: 2 }).error, 'perk-locked-or-exhausted')
+})
+
+test('each unlocked Guest Perk can be persisted for a visit and activated by the guest role', () => {
+  let store = syncGuestChallengePerkRewards(createPerkStore(), { history: [
+    { houseId: 'beginner-house', medal: 'bronze' },
+    { houseId: 'advanced-house', medal: 'silver' },
+    { houseId: 'expert-house', medal: 'gold', difficulty: 'hard' },
+  ] }).store
+  for (const perkId of ['extra-steps', 'trap-warning', 'emergency-shield']) {
+    const visitId = `guest-unlock-${perkId}`
+    const saved = saveVisitPerkSelection(store, { visitId, profiles: { owner: 'owner-1', guest: 'local-guest' }, selections: { owner: [], guest: [perkId] }, maxSelected: 2 })
+    assert.equal(saved.ok, true)
+    store = saved.store
+    const currentPerks = createVisitPerkState(visitId, saved.selection)
+    const active = activatePerk(store, currentPerks, { visitId, profileId: 'local-guest', role: 'guest', perkId, activationId: `${visitId}:guest:${perkId}:1` })
+    assert.equal(active.ok, true, perkId)
+    assert.equal(isPerkActive(active.visitPerks, 'guest', perkId), true, perkId)
+  }
 })
 
 test('the owner trap map reveals hidden traps only to the owner and never edits trap visibility', () => {

@@ -5,6 +5,7 @@ import { CHALLENGE_HOUSES, createChallengeCompound } from './challenges/houses.j
 import { createChallengeVisit } from './challengeVisit.js'
 import { GUARDIAN_DIFFICULTIES } from './guardianAI.js'
 import { createEquipmentStore, createVisitEquipment } from './equipment.js'
+import { createVisit } from './visitEngine.js'
 import { loadActiveChallenge, saveActiveChallenge } from './challenges/progress.js'
 
 test('all challenge houses can start at every selected difficulty with matching Guardian parameters', () => {
@@ -50,6 +51,20 @@ test('selected Guardian difficulty and preparation choices survive the existing 
   assert.deepEqual(restored.visit.equipment.selectedToolIds, ['floor-kit'])
 })
 
+test('challenge save rejects ordinary visit data without replacing the challenge checkpoint', () => {
+  const house = CHALLENGE_HOUSES[0]
+  const target = { visitType: 'challenge', mapSource: 'challenge-catalog', houseId: house.id, compound: createChallengeCompound(house.id) }
+  const challengeVisit = createChallengeVisit(target, { id: 'separate-challenge-save', difficulty: 'easy' })
+  const values = new Map()
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) }
+  assert.equal(saveActiveChallenge({ houseId: house.id, compound: target.compound, visit: challengeVisit }, storage), true)
+  const saved = values.get('im-home-active-challenge-v1')
+  const ordinaryVisit = createVisit(target.compound, { id: 'must-not-overwrite-challenge', visitType: 'regular' })
+  assert.equal(saveActiveChallenge({ houseId: house.id, compound: target.compound, visit: ordinaryVisit }, storage), false)
+  assert.equal(values.get('im-home-active-challenge-v1'), saved)
+  assert.equal(loadActiveChallenge(storage).visit.id, challengeVisit.id)
+})
+
 test('challenge preparation presents defense and Guest Perks before equipment and waits for summary confirmation', async () => {
   const app = await readFile(new URL('./App.jsx', import.meta.url), 'utf8')
   const defenseIndex = app.indexOf('<HostPerkBriefing')
@@ -60,4 +75,17 @@ test('challenge preparation presents defense and Guest Perks before equipment an
   assert.ok(guestPerksIndex < equipmentIndex && equipmentIndex < summaryIndex)
   assert.match(app.slice(equipmentIndex, summaryIndex), /onStart=\{selectChallengeEquipment\}/)
   assert.match(app.slice(summaryIndex), /onStart=\{startChallengeWithEquipment\}/)
+})
+
+test('the three difficulty controls change the selected value and remain responsive on desktop and mobile', async () => {
+  const [difficulty, styles, app] = await Promise.all([
+    readFile(new URL('./ChallengeDifficulty.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('./ChallengePreparation.css', import.meta.url), 'utf8'),
+    readFile(new URL('./App.jsx', import.meta.url), 'utf8'),
+  ])
+  assert.match(difficulty, /Object\.entries\(GUARDIAN_DIFFICULTIES\)/)
+  assert.match(difficulty, /onClick=\{\(\) => onSelect\(id\)\}/)
+  assert.match(app, /onSelect=\{\(difficulty\) => setChallengeDraft\(\(current\) => current \? \{ \.\.\.current, guardianDifficulty: difficulty \} : current\)\}/)
+  assert.match(styles, /\.difficulty-options\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/)
+  assert.match(styles, /@media\(max-width:700px\).*?\.difficulty-options\{grid-template-columns:1fr/)
 })

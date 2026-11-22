@@ -53,23 +53,23 @@ function HouseCard({ house, progress, unlocked, disabled, onSelect }) {
   </article>
 }
 
-export default function VisitSelection({ progress, activeChallenge, onChallenge, onContinueChallenge, onAbandonChallenge, onBack }) {
+export default function VisitSelection({ mode = 'visit', progress, activeChallenge, onChallenge, onContinueChallenge, onAbandonChallenge, onBack }) {
   const [showAchievements, setShowAchievements] = useState(false)
+  const challengeMode = mode === 'challenge'
   const unlocked = CHALLENGE_HOUSES.filter((house) => isChallengeHouseUnlocked(progress, house.id))
   const locked = CHALLENGE_HOUSES.filter((house) => !isChallengeHouseUnlocked(progress, house.id))
   const hasActive = activeChallenge?.visit?.outcome === 'active'
   return <main className="visit-selection" dir="rtl">
     <header className="visit-selection-header">
       <button onClick={onBack}>חזרה לבית</button>
-      <div><span>בחרו יעד</span><h1>לאן יוצאים לביקור?</h1></div>
-      <div className="selection-header-actions"><button onClick={() => setShowAchievements((value) => !value)}>{showAchievements ? 'חזרה לבתים' : 'הישגים'}</button><strong>I’M <b>HOME</b></strong></div>
+      <div><span>{challengeMode ? 'מסלול יחיד · התקדמות נפרדת' : 'יעד לביקור רגיל'}</span><h1>{challengeMode ? 'AI Challenge' : 'Start a Visit'}</h1></div>
+      <div className="selection-header-actions">{challengeMode && <button onClick={() => setShowAchievements((value) => !value)}>{showAchievements ? 'חזרה לבתים' : 'הישגים'}</button>}<strong>I’M <b>HOME</b></strong></div>
     </header>
-    {showAchievements ? <Achievements progress={progress} /> : <>
+    {!challengeMode ? <section className="selection-category destination-empty-state">
+      <div className="selection-category-heading"><span>01</span><div><small>בחירת יעד מפורשת</small><h2>Player Houses</h2></div><b>אין בתים זמינים</b></div>
+      <div className="selection-empty"><span>⌂</span><div><b>אין כרגע יעד זמין לביקור רגיל</b><p>כשיהיו בתים של שחקנים אחרים זמינים לבחירה, הם יוצגו כאן. הבית האישי שלך נשאר ב־My Home ואינו נבחר אוטומטית או כיעד לביקור.</p><small>Visit Other Players · Coming Soon</small></div></div>
+    </section> : showAchievements ? <Achievements progress={progress} /> : <>
     {hasActive && <aside className="selection-resume"><div><span>אתגר פעיל</span><b>{CHALLENGE_HOUSES.find((house) => house.id === activeChallenge.houseId)?.title ?? 'בית אתגר'}</b></div><button onClick={onContinueChallenge}>המשיכו בביקור ←</button><button className="selection-abandon" onClick={onAbandonChallenge}>וותרו על הניסיון</button></aside>}
-    <section className="selection-category">
-      <div className="selection-category-heading"><span>01</span><div><small>ביקורים בקהילה</small><h2>Player Houses</h2></div><b>ממתין למקור בתים</b></div>
-      <div className="selection-empty"><span>⌂</span><div><b>אין כרגע בתים של שחקנים זמינים</b><p>כשתהיה מערכת לבחירת בתים של שחקנים אחרים, הם יופיעו כאן. הבית שבנית ב־Builder אינו יעד לביקור.</p></div></div>
-    </section>
     <section className="selection-category">
       <div className="selection-category-heading"><span>02</span><div><small>מסלול יחיד · שלושה מתחמים</small><h2>AI Challenge Houses</h2></div><b>{unlocked.length} פתוחים</b></div>
       <div className="selection-house-grid">{unlocked.map((house) => <HouseCard key={house.id} house={house} progress={progress} unlocked disabled={hasActive} onSelect={onChallenge} />)}</div>
