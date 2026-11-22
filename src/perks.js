@@ -1,7 +1,10 @@
+import { DEVELOPMENT_MODE } from './gameConfig.js'
+
 export const PERK_DATA_VERSION = 1
 export const PERK_STORAGE_KEY = 'im-home-perks-v1'
 export const PERK_ROLES = Object.freeze(['owner', 'guest'])
 export const PERK_GRANT_SOURCES = Object.freeze(['achievement', 'challenge', 'reward'])
+export const HOST_PERK_CONFIG = Object.freeze({ energyPerVisit: 50 })
 
 export const PERK_CATALOG = Object.freeze([
   Object.freeze({
@@ -11,9 +14,56 @@ export const PERK_CATALOG = Object.freeze([
     name: 'מפת המלכודות',
     description: 'מציגה לבעל המתחם בלבד את מיקומן של המלכודות הנסתרות למשך הביקור.',
     effect: 'reveal-hidden-traps',
+    effectConfig: { duration: 'visit' },
     status: 'implemented',
+    unlocked: false,
+    enabled: true,
+    unlockRequirement: 'השלמת אתגר הגנתי או הישג בעל הבית',
+    unlockDescription: 'ייפתח בהמשך דרך הישגים במסלול בעל הבית.',
+    usageLimit: { perVisit: 1 },
+    cooldown: 0,
     maxActivationsPerVisit: 1,
     limitKinds: ['permanent', 'visits', 'activations'],
+  }),
+  Object.freeze({
+    id: 'trap-reinforcement', role: 'owner', category: 'defense', name: 'Trap Reinforcement',
+    description: 'מחזק מלכודת אחת ב־25% במהלך הביקור, בלי לעבור את תקרת הנזק של המלכודת.',
+    effect: 'reinforce-trap', effectConfig: { multiplier: 1.25, maxActivationsPerVisit: 1 },
+    status: 'implemented', unlocked: false, enabled: true,
+    unlockRequirement: 'ניסיון והצלחות במסלול בעל הבית', unlockDescription: 'ייפתח דרך ניסיון והצלחות במסלול בעל הבית.',
+    usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
+  }),
+  Object.freeze({
+    id: 'spectator-control', role: 'owner', category: 'offense', name: 'Spectator Control',
+    description: 'עוצר את האורח לתור אחד. עד שתי הפעלות לביקור, עם השהיה של 30 שניות ועלות 25 אנרגיה.',
+    effect: 'spectator-stun', effectConfig: { stunTurns: 1, energyCost: 25, energyPerVisit: HOST_PERK_CONFIG.energyPerVisit, cooldownMs: 30000 },
+    status: 'implemented', unlocked: false, enabled: true,
+    unlockRequirement: 'התקדמות במסלול בעל הבית', unlockDescription: 'ייפתח דרך התקדמות במסלול בעל הבית.',
+    usageLimit: { perVisit: 2 }, cooldown: 30000, maxActivationsPerVisit: 2, limitKinds: ['permanent', 'visits', 'activations'],
+  }),
+  Object.freeze({
+    id: 'extra-steps', role: 'guest', category: 'defense', name: 'Extra Steps',
+    description: 'מוסיף 8 צעדים לביקור לאחר שנותרו 25% ממכסת הצעדים. הפעלה אחת לביקור.',
+    effect: 'extend-step-budget', effectConfig: { amount: 8, triggerRemainingRatio: 0.25 },
+    status: 'implemented', unlocked: false, enabled: true,
+    unlockRequirement: 'השלמת ביקורים מוצלחים וצבירת ניסיון אישי', unlockDescription: 'ייפתח דרך ביקורים מוצלחים והתקדמות אישית.',
+    usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
+  }),
+  Object.freeze({
+    id: 'trap-warning', role: 'guest', category: 'defense', name: 'Trap Warning',
+    description: 'מתריע כאשר מלכודת שלא הופעלה נמצאת עד שתי משבצות מהאורח, בלי לחשוף את מיקומה.',
+    effect: 'nearby-trap-warning', effectConfig: { radius: 2, duration: 'visit' },
+    status: 'implemented', unlocked: false, enabled: true,
+    unlockRequirement: 'התקדמות אישית והשלמת אתגרים', unlockDescription: 'ייפתח דרך התקדמות אישית והשלמת אתגרים.',
+    usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
+  }),
+  Object.freeze({
+    id: 'emergency-shield', role: 'guest', category: 'defense', name: 'Emergency Shield',
+    description: 'סופג במלואה את הפגיעה הבאה ממלכודת אחת במהלך הביקור.',
+    effect: 'absorb-next-trap-hit', effectConfig: { hits: 1 },
+    status: 'implemented', unlocked: false, enabled: true,
+    unlockRequirement: 'הישגים והשלמת ביקורים קשים', unlockDescription: 'ייפתח דרך הישגים וביקורים קשים.',
+    usageLimit: { perVisit: 1 }, cooldown: 0, maxActivationsPerVisit: 1, limitKinds: ['permanent', 'visits', 'activations'],
   }),
 ])
 
@@ -26,7 +76,7 @@ export function createPerkStore() {
 }
 
 function normalizePerkStore(store) {
-  if (store?.version !== PERK_DATA_VERSION || !store.profiles || typeof store.profiles !== 'object') return createPerkStore()
+  if (store?.version !== PERK_DATA_VERSION && store?.version !== 1 || !store.profiles || typeof store.profiles !== 'object') return createPerkStore()
   return {
     version: PERK_DATA_VERSION,
     profiles: store.profiles,
@@ -55,7 +105,7 @@ function hasRemainingUse(inventory) {
 
 export function listPerksForRole(role) {
   if (!validRole(role)) return []
-  return PERK_CATALOG.filter((perk) => perk.role === role)
+  return PERK_CATALOG.filter((perk) => perk.role === role && perk.enabled)
 }
 
 export function grantPerk(currentStore, { profileId, role, perkId, source, grantId = `${source}:${role}:${profileId}:${perkId}`, limitKind = 'permanent', remainingUses = null }) {
@@ -92,8 +142,8 @@ export function validatePerkSelection(storeValue, { profileId, role, selectedIds
   for (const perkId of selectedIds) {
     const definition = definitionFor(role, perkId)
     if (!definition) return { ok: false, error: 'role-or-perk-mismatch' }
-    if (definition.status !== 'implemented') return { ok: false, error: 'perk-not-implemented' }
-    if (!hasRemainingUse(profile?.inventory?.[perkId])) return { ok: false, error: 'perk-locked-or-exhausted' }
+    if (!definition.enabled || definition.status !== 'implemented') return { ok: false, error: 'perk-not-implemented' }
+    if (!DEVELOPMENT_MODE && !hasRemainingUse(profile?.inventory?.[perkId])) return { ok: false, error: 'perk-locked-or-exhausted' }
   }
   return { ok: true, selectedIds: [...selectedIds] }
 }
@@ -118,14 +168,16 @@ export function createVisitPerkState(visitId, selection = {}) {
     selections: { owner: [...(selection.owner?.selectedIds ?? selection.owner ?? [])], guest: [...(selection.guest?.selectedIds ?? selection.guest ?? [])] },
     active: { owner: [], guest: [] },
     activations: { owner: {}, guest: {} },
+    effectLedger: [],
     events: [],
   }
 }
 
 export function activatePerk(currentStore, currentVisitPerks, { visitId, profileId, role, actorRole = role, perkId, activationId }) {
-  if (!validRole(role) || actorRole !== role || typeof activationId !== 'string' || !activationId) return { ok: false, error: 'role-or-activation-mismatch', store: currentStore, visitPerks: currentVisitPerks }
+  const guardianOwner = role === 'owner' && actorRole === 'guardian' && currentVisitPerks?.ownerActor === 'guardian'
+  if (!validRole(role) || actorRole !== role && !guardianOwner || typeof activationId !== 'string' || !activationId) return { ok: false, error: 'role-or-activation-mismatch', store: currentStore, visitPerks: currentVisitPerks }
   const definition = definitionFor(role, perkId)
-  if (!definition || definition.status !== 'implemented') return { ok: false, error: 'role-or-perk-mismatch', store: currentStore, visitPerks: currentVisitPerks }
+  if (!definition || !definition.enabled || definition.status !== 'implemented') return { ok: false, error: 'role-or-perk-mismatch', store: currentStore, visitPerks: currentVisitPerks }
   if (!currentVisitPerks || currentVisitPerks.visitId !== visitId || !currentVisitPerks.selections?.[role]?.includes(perkId)) return { ok: false, error: 'perk-not-selected-for-visit', store: currentStore, visitPerks: currentVisitPerks }
 
   const store = clone(normalizePerkStore(currentStore))
@@ -138,17 +190,17 @@ export function activatePerk(currentStore, currentVisitPerks, { visitId, profile
   }
 
   const storedSelection = store.visitSelections[visitId]?.[role]
-  if (storedSelection?.profileId !== profileId || !storedSelection.selectedIds.includes(perkId)) return { ok: false, error: 'selection-not-persisted-for-profile', store: currentStore, visitPerks: currentVisitPerks }
+  if (!guardianOwner && (storedSelection?.profileId !== profileId || !storedSelection.selectedIds.includes(perkId))) return { ok: false, error: 'selection-not-persisted-for-profile', store: currentStore, visitPerks: currentVisitPerks }
   const profile = store.profiles[profileKey(role, profileId)]
   const inventory = profile?.inventory?.[perkId]
   const visitChargeUsed = inventory?.limitKind === 'visits' && store.activationLedger.some((entry) => entry.visitId === visitId && entry.profileId === profileId && entry.role === role && entry.perkId === perkId)
-  if (!hasRemainingUse(inventory) && !visitChargeUsed) return { ok: false, error: 'perk-locked-or-exhausted', store: currentStore, visitPerks: currentVisitPerks }
+  if (!guardianOwner && !DEVELOPMENT_MODE && !hasRemainingUse(inventory) && !visitChargeUsed) return { ok: false, error: 'perk-locked-or-exhausted', store: currentStore, visitPerks: currentVisitPerks }
   if ((visitPerks.activations[role][perkId] ?? 0) >= definition.maxActivationsPerVisit) return { ok: false, error: 'visit-activation-limit', store: currentStore, visitPerks: currentVisitPerks }
 
-  if (inventory.limitKind === 'activations' || inventory.limitKind === 'visits' && !visitChargeUsed) inventory.remainingUses -= 1
+  if (!guardianOwner && !DEVELOPMENT_MODE && (inventory.limitKind === 'activations' || inventory.limitKind === 'visits' && !visitChargeUsed)) inventory.remainingUses -= 1
   visitPerks.active[role].push(perkId)
   visitPerks.activations[role][perkId] = (visitPerks.activations[role][perkId] ?? 0) + 1
-  const entry = { activationId, visitId, profileId, role, perkId, activatedAt: new Date().toISOString(), remainingUses: inventory.remainingUses }
+  const entry = { activationId, visitId, profileId, role, perkId, activatedAt: new Date().toISOString(), remainingUses: guardianOwner || DEVELOPMENT_MODE ? null : inventory.remainingUses }
   store.activationLedger.push(entry)
   visitPerks.events.push({ ...entry, type: 'perk-activated' })
   return { ok: true, duplicate: false, store, visitPerks, inventory: { ...inventory } }

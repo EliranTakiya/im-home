@@ -14,7 +14,11 @@ import {
   savePerkStore,
   saveVisitPerkSelection,
   validatePerkSelection,
+  PERK_CATALOG,
 } from './perks.js'
+import { STARTER_ITEMS, createCompoundData } from './compound.js'
+import { advanceVisit, createVisit } from './visitEngine.js'
+import { applySelectedPerkEffect, hasNearbyTrapWarning, hostPerkAvailability } from './perkEffects.js'
 
 function reward(store, { role = 'owner', profileId = `${role}-1`, remainingUses = 1, limitKind = 'visits', grantId = 'reward:trap-map' } = {}) {
   return grantPerk(store, { role, profileId, perkId: 'trap-map', source: 'reward', grantId, limitKind, remainingUses })
@@ -31,8 +35,9 @@ function selectForVisit(store, visitId, role = 'owner') {
 
 test('perk definitions and selection are isolated by player role', () => {
   const store = reward(createPerkStore()).store
-  assert.deepEqual(listPerksForRole('guest'), [])
+  assert.deepEqual(listPerksForRole('guest').map((perk) => perk.id), ['extra-steps', 'trap-warning', 'emergency-shield'])
   assert.equal(listPerksForRole('owner').some((perk) => perk.id === 'trap-map'), true)
+  assert.deepEqual(listPerksForRole('owner').map((perk) => perk.id), ['trap-map', 'trap-reinforcement', 'spectator-control'])
   assert.deepEqual(validatePerkSelection(store, { profileId: 'guest-1', role: 'guest', selectedIds: ['trap-map'], maxSelected: 2 }), { ok: false, error: 'role-or-perk-mismatch' })
   assert.deepEqual(validatePerkSelection(store, { profileId: 'owner-1', role: 'owner', selectedIds: ['trap-map'], maxSelected: 0 }), { ok: false, error: 'selection-limit' })
 })
@@ -109,4 +114,71 @@ test('cross-role activation and mismatched profiles are rejected', () => {
   assert.equal(attempt.ok, false)
   assert.equal(attempt.error, 'role-or-activation-mismatch')
   assert.equal(selected.store.activationLedger.length, 0)
+})
+
+test('Extra Steps expands only near the step limit and the effect is idempotent', () => {
+  const visit = createVisit(createCompoundData(STARTER_ITEMS), { id: 'extra-steps-visit' })
+  visit.stepBudget = 40
+  visit.guest.stepsTaken = 30
+  const perk = PERK_CATALOG.find((entry) => entry.id === 'extra-steps')
+  const applied = applySelectedPerkEffect(visit, perk, { activationId: 'extra-steps-visit:guest:extra-steps:1' })
+  assert.equal(applied.ok, true)
+  assert.equal(applied.visit.stepBudget, 48)
+  assert.equal(applySelectedPerkEffect(applied.visit, perk, { activationId: 'extra-steps-visit:guest:extra-steps:1' }).duplicate, true)
+  assert.equal(applied.visit.stepBudget, 48)
+})
+
+test('Emergency Shield absorbs a trap hit through the existing health and damage path', () => {
+  const compound = createCompoundData([...STARTER_ITEMS, { id: 'shield-test-trap', type: 'trap', trapType: 'electric', x: 5, y: 6, w: 1, h: 1 }])
+  const visit = createVisit(compound, { id: 'shield-test' })
+  visit.perks.selections.guest = ['emergency-shield']
+  visit.perks.active.guest = ['emergency-shield']
+  const next = advanceVisit(compound, visit)
+  assert.equal(next.guest.health, 100)
+  assert.equal(next.guest.damageTaken, 0)
+  assert.equal(next.events.some((event) => event.type === 'shield'), true)
+  assert.equal(next.perks.active.guest.includes('emergency-shield'), false)
+})
+
+test('reinforced traps gain 25 percent with the engine damage cap intact', () => {
+  const compound = createCompoundData([...STARTER_ITEMS, { id: 'reinforced-test', type: 'trap', trapType: 'electric', x: 5, y: 6, w: 1, h: 1 }])
+  const visit = createVisit(compound, { id: 'reinforced-visit' })
+  visit.trapStates['reinforced-test'].reinforcementMultiplier = 1.25
+  const reinforced = advanceVisit(compound, visit)
+  assert.equal(reinforced.guest.health, 87)
+
+  const strongCompound = createCompoundData([...STARTER_ITEMS, { id: 'capped-test', type: 'trap', trapType: 'electric', x: 5, y: 6, w: 1, h: 1, effect: { strength: 3, durationTurns: 1 } }])
+  const strongVisit = createVisit(strongCompound, { id: 'capped-visit' })
+  strongVisit.trapStates['capped-test'].reinforcementMultiplier = 1.25
+  assert.equal(advanceVisit(strongCompound, strongVisit).guest.health, 70)
+})
+
+test('Spectator Control enforces energy, cooldown, stun, and bounded uses', () => {
+  const visit = createVisit(createCompoundData(STARTER_ITEMS), { id: 'spectator-control-visit' })
+  const perk = PERK_CATALOG.find((entry) => entry.id === 'spectator-control')
+  assert.equal(hostPerkAvailability(visit, perk, 1000).ok, true)
+  const activated = applySelectedPerkEffect(visit, perk, { activationId: 'spectator-control-visit:owner:spectator-control:1', now: 1000 })
+  assert.equal(activated.visit.spectator.energy, 25)
+  assert.equal(activated.visit.guest.stunTurnsRemaining, 1)
+  assert.equal(hostPerkAvailability(activated.visit, perk, 2000).reason, 'cooldown')
+  const resumed = structuredClone(activated.visit)
+  resumed.guest.stunTurnsRemaining = 0
+  assert.equal(hostPerkAvailability(resumed, perk, 2000).reason, 'cooldown')
+  resumed.spectator.cooldowns[perk.id] = 0
+  resumed.guest.stunTurnsRemaining = 1
+  assert.equal(hostPerkAvailability(resumed, perk, 2000).reason, 'guest-already-stunned')
+  resumed.guest.stunTurnsRemaining = 0
+  resumed.spectator.energy = 0
+  assert.equal(hostPerkAvailability(resumed, perk, 40000).reason, 'energy')
+})
+
+test('Trap Warning signals proximity without returning or revealing trap locations', () => {
+  const compound = createCompoundData([...STARTER_ITEMS, { id: 'hidden-warning', type: 'trap', trapType: 'electric', x: 5, y: 6, w: 1, h: 1, visibility: 'hidden' }])
+  const visit = createVisit(compound, { id: 'warning-visit' })
+  visit.perks.active.guest = ['trap-warning']
+  assert.equal(hasNearbyTrapWarning(compound, visit), true)
+  visit.trapStates['hidden-warning'].triggered = true
+  assert.equal(hasNearbyTrapWarning(compound, visit), false)
+  visit.perks.active.guest = []
+  assert.equal(hasNearbyTrapWarning(compound, visit), false)
 })

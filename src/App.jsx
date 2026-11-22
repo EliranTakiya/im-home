@@ -3,9 +3,16 @@ import Builder from './Builder.jsx'
 import VisitGame from './VisitGame.jsx'
 import PerkSelection from './PerkSelection.jsx'
 import EquipmentSelection from './EquipmentSelection.jsx'
-import { loadCompound } from './compound.js'
+import VisitSelection from './VisitSelection.jsx'
+import ChallengeDifficulty from './ChallengeDifficulty.jsx'
+import HostPerkBriefing from './HostPerkBriefing.jsx'
+import ChallengeSummary from './ChallengeSummary.jsx'
 import { createVisitEquipment, loadEquipmentStore } from './equipment.js'
-import { clearActiveVisit, createVisit, loadActiveVisit, saveActiveVisit } from './visitEngine.js'
+import { createVisit, loadActiveVisit, saveActiveVisit } from './visitEngine.js'
+import { createChallengeVisit } from './challengeVisit.js'
+import { CHALLENGE_HOUSES, getChallengeHouse } from './challenges/houses.js'
+import { clearActiveChallenge, loadActiveChallenge, loadChallengeProgress, recordChallengeAttempt, saveActiveChallenge, saveChallengeProgress } from './challenges/progress.js'
+import { selectChallengeVisitTarget } from './visitSelection.js'
 import './App.css'
 
 function HomeMark() {
@@ -54,22 +61,13 @@ function App() {
   const [screen, setScreen] = useState('home')
   const [visit, setVisit] = useState(() => loadActiveVisit())
   const [visitDraft, setVisitDraft] = useState(null)
-
-  function createDraft() {
-    return { id: globalThis.crypto?.randomUUID?.() ?? `visit-${Date.now()}`, compound: loadCompound() }
-  }
-
-  function startNewVisit() {
-    const active = loadActiveVisit()
-    if (active) clearActiveVisit(globalThis.localStorage, active.session.id)
-    setVisit(null)
-    setVisitDraft(createDraft())
-    setScreen('perks')
-  }
+  const [challengeProgress, setChallengeProgress] = useState(() => loadChallengeProgress())
+  const [activeChallenge, setActiveChallenge] = useState(() => loadActiveChallenge())
+  const [challengeDraft, setChallengeDraft] = useState(null)
 
   function continueVisit() {
     const active = loadActiveVisit() ?? (visit?.session.outcome === 'active' ? visit : null)
-    if (!active) { startNewVisit(); return }
+    if (!active) { setScreen('visit-selection'); return }
     setVisit(active)
     setScreen('visit')
   }
@@ -81,8 +79,7 @@ function App() {
 
   function restartVisit() {
     setVisit(null)
-    setVisitDraft(createDraft())
-    setScreen('perks')
+    setScreen('visit-selection')
   }
 
   function continueToEquipment(selection) {
@@ -91,10 +88,11 @@ function App() {
   }
 
   function startVisitWithEquipment(selectedToolIds) {
-    const savedCompound = visitDraft?.compound ?? loadCompound()
-    const session = createVisit(savedCompound, { id: visitDraft?.id, perkSelection: visitDraft?.perkSelection ?? {}, equipment: createVisitEquipment(loadEquipmentStore(), selectedToolIds) })
-    saveActiveVisit(savedCompound, session)
-    setVisit({ compound: savedCompound, session })
+    const target = visitDraft
+    if (!target?.compound || target.visitType !== 'player-house' || target.mapSource !== 'player-house' || !target.houseId) return
+    const session = createVisit(target.compound, { id: target.id, visitType: 'player-house', ownerMode: 'absent', mapSource: target.mapSource, houseId: target.houseId, perkSelection: target.perkSelection ?? {}, equipment: createVisitEquipment(loadEquipmentStore(), selectedToolIds) })
+    saveActiveVisit(target.compound, session)
+    setVisit({ compound: target.compound, session })
     setVisitDraft(null)
     setScreen('visit')
   }
@@ -104,6 +102,89 @@ function App() {
     setScreen('home')
   }
 
+  function beginChallenge(house) {
+    if (activeChallenge?.visit?.outcome === 'active') return
+    const target = selectChallengeVisitTarget(challengeProgress, house?.id)
+    if (!target) return
+    const houseData = getChallengeHouse(target.houseId)
+    setChallengeDraft({ ...target, id: globalThis.crypto?.randomUUID?.() ?? `challenge-${Date.now()}`, guardianDifficulty: houseData.guardianDifficulty })
+    setScreen('challenge-difficulty')
+  }
+
+  function selectChallengeDifficulty(difficulty) {
+    if (!challengeDraft || !['easy', 'normal', 'hard'].includes(difficulty)) return
+    setChallengeDraft((current) => ({ ...current, guardianDifficulty: difficulty }))
+    setScreen('challenge-host-perks')
+  }
+
+  function continueChallenge() {
+    const active = loadActiveChallenge() ?? activeChallenge
+    if (!active || active.visit?.outcome !== 'active') return
+    setActiveChallenge(active)
+    setScreen('challenge-visit')
+  }
+
+  function abandonChallenge() {
+    clearActiveChallenge(globalThis.localStorage, activeChallenge?.visit?.id)
+    setActiveChallenge(null)
+  }
+
+  function selectChallengeEquipmentPerks(selection) {
+    setChallengeDraft((current) => {
+      if (!current) return current
+      const house = getChallengeHouse(current.houseId)
+      return { ...current, perkSelection: { ...selection, owner: { profileId: `challenge-owner:${current.houseId}`, selectedIds: house?.guardianPerks ?? [] } } }
+    })
+    setScreen('challenge-equipment')
+  }
+
+  function selectChallengeEquipment(selectedToolIds) {
+    setChallengeDraft((current) => current ? { ...current, selectedToolIds: [...selectedToolIds] } : current)
+    setScreen('challenge-summary')
+  }
+
+  function startChallengeWithEquipment() {
+    if (!challengeDraft) return
+    if (challengeDraft.visitType !== 'challenge' || challengeDraft.mapSource !== 'challenge-catalog' || !getChallengeHouse(challengeDraft.houseId)) return
+    const session = createChallengeVisit(challengeDraft, { id: challengeDraft.id, difficulty: challengeDraft.guardianDifficulty, perkSelection: challengeDraft.perkSelection ?? {}, equipment: createVisitEquipment(loadEquipmentStore(), challengeDraft.selectedToolIds ?? []) })
+    if (!session) return
+    const active = { version: 1, houseId: challengeDraft.houseId, houseVersion: getChallengeHouse(challengeDraft.houseId).version, compound: challengeDraft.compound, visit: session }
+    if (!saveActiveChallenge(active)) return
+    setActiveChallenge(active)
+    setChallengeDraft(null)
+    setScreen('challenge-visit')
+  }
+
+  function finishChallengeAttempt(session, houseId) {
+    const result = recordChallengeAttempt(challengeProgress, houseId, session)
+    if (!result.ok) return
+    saveChallengeProgress(result.progress)
+    setChallengeProgress(result.progress)
+    setActiveChallenge((current) => current ? { ...current, visit: session, finished: true } : current)
+  }
+
+  function leaveChallenge(session) {
+    if (activeChallenge && session.outcome === 'active') {
+      const updated = { ...activeChallenge, visit: session }
+      saveActiveChallenge(updated)
+      setActiveChallenge(updated)
+    }
+    setScreen('visit-selection')
+  }
+
+  function restartChallenge() {
+    const houseId = activeChallenge?.houseId
+    const house = CHALLENGE_HOUSES.find((entry) => entry.id === houseId)
+    if (!house) { setScreen('visit-selection'); return }
+    clearActiveChallenge(globalThis.localStorage, activeChallenge?.visit?.id)
+    setActiveChallenge(null)
+    const target = selectChallengeVisitTarget(challengeProgress, houseId)
+    if (!target) { setScreen('visit-selection'); return }
+    const houseData = getChallengeHouse(target.houseId)
+    setChallengeDraft({ ...target, id: globalThis.crypto?.randomUUID?.() ?? `challenge-${Date.now()}`, guardianDifficulty: houseData.guardianDifficulty })
+    setScreen('challenge-difficulty')
+  }
+
   return (
     <>
     <div style={{ display: screen === 'builder' ? 'block' : 'none' }} aria-hidden={screen !== 'builder'}>
@@ -111,6 +192,15 @@ function App() {
     </div>
     {visit && <div style={{ display: screen === 'visit' ? 'block' : 'none' }} aria-hidden={screen !== 'visit'}>
       <VisitGame key={visit.session.id} compound={visit.compound} initialVisit={visit.session} onHome={returnHome} onRestart={restartVisit} isActive={screen === 'visit'} />
+    </div>}
+    {screen === 'visit-selection' && <VisitSelection progress={challengeProgress} activeChallenge={activeChallenge} onChallenge={beginChallenge} onContinueChallenge={continueChallenge} onAbandonChallenge={abandonChallenge} onBack={() => setScreen('home')} />}
+    {screen === 'challenge-difficulty' && challengeDraft && <ChallengeDifficulty house={getChallengeHouse(challengeDraft.houseId)} value={challengeDraft.guardianDifficulty} onSelect={(difficulty) => setChallengeDraft((current) => current ? { ...current, guardianDifficulty: difficulty } : current)} onContinue={() => selectChallengeDifficulty(challengeDraft.guardianDifficulty)} onCancel={() => { setChallengeDraft(null); setScreen('visit-selection') }} />}
+    {screen === 'challenge-host-perks' && challengeDraft && <HostPerkBriefing house={getChallengeHouse(challengeDraft.houseId)} onContinue={() => setScreen('challenge-perks')} onBack={() => setScreen('challenge-difficulty')} />}
+    {screen === 'challenge-perks' && challengeDraft && <PerkSelection key={challengeDraft.id} visitId={challengeDraft.id} challengeMode stepLabel="שלב 4 מתוך 7" continueLabel="שמרו Guest Perks והמשיכו לציוד" onStart={selectChallengeEquipmentPerks} onCancel={() => setScreen('challenge-host-perks')} />}
+    {screen === 'challenge-equipment' && challengeDraft && <EquipmentSelection stepLabel="שלב 5 מתוך 7" continueLabel="שמרו ציוד והמשיכו לסיכום" onStart={selectChallengeEquipment} onCancel={() => setScreen('challenge-perks')} />}
+    {screen === 'challenge-summary' && challengeDraft && <ChallengeSummary draft={challengeDraft} house={getChallengeHouse(challengeDraft.houseId)} onBack={() => setScreen('challenge-equipment')} onStart={startChallengeWithEquipment} />}
+    {activeChallenge && <div style={{ display: screen === 'challenge-visit' ? 'block' : 'none' }} aria-hidden={screen !== 'challenge-visit'}>
+      <VisitGame key={activeChallenge.visit.id} compound={activeChallenge.compound} initialVisit={activeChallenge.visit} challengeHouse={getChallengeHouse(activeChallenge.houseId)} onHome={leaveChallenge} onRestart={restartChallenge} onChallengeResult={finishChallengeAttempt} isActive={screen === 'challenge-visit'} />
     </div>}
     {screen === 'perks' && visitDraft && <PerkSelection key={visitDraft.id} visitId={visitDraft.id} onStart={continueToEquipment} onCancel={cancelVisitDraft} />}
     {screen === 'equipment' && visitDraft && <EquipmentSelection onStart={startVisitWithEquipment} onCancel={() => setScreen('perks')} />}
@@ -137,10 +227,12 @@ function App() {
             <button className="primary-button" onClick={() => setScreen('builder')}>
               <span>היכנסו למתחם</span><span className="button-arrow" aria-hidden="true">←</span>
             </button>
+            <button className="secondary-button" onClick={() => setScreen('visit-selection')}><span className="play-icon">◆</span> בחירת ביקור</button>
+            {activeChallenge && <button className="secondary-button" onClick={continueChallenge}><span className="play-icon">▶</span> המשיכו בית אתגר</button>}
             {visit?.session.outcome === 'active' ? <>
               <button className="secondary-button" onClick={continueVisit}><span className="play-icon">▶</span> המשיכו ביקור קיים</button>
-              <button className="secondary-button abandon-visit-button" onClick={startNewVisit}>וותרו על הביקור והתחילו חדש</button>
-            </> : <button className="secondary-button" onClick={startNewVisit}><span className="play-icon">▶</span> התחילו ביקור</button>}
+              <button className="secondary-button" onClick={() => setScreen('visit-selection')}>בחרו יעד אחר</button>
+            </> : <button className="secondary-button" onClick={() => setScreen('visit-selection')}><span className="play-icon">▶</span> התחילו ביקור</button>}
             <a className="secondary-button" href="#world"><span className="play-icon">▶</span> גלו את העולם</a>
           </div>
           <div className="hero-footnote"><span className="footnote-line" /> המשחק נמצא בפיתוח <span className="footnote-separator">·</span> הבית הראשון נבנה עכשיו</div>

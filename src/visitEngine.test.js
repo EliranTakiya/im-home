@@ -197,6 +197,26 @@ test('active visits survive reload with timers, exposure, events, and a private 
   assert.equal(loadVisitResults(storage).length, 0)
 })
 
+test('legacy active visit saves remain resumable and cannot restore a stale Guardian mode', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  const legacy = createVisit(compound, { id: 'legacy-guardian-save', visitType: 'challenge', ownerMode: 'ai' })
+  legacy.guardian = { phase: 'present', eventLog: [] }
+  const record = { version: 1, compound, visit: legacy }
+  delete record.visit.visitType
+  delete record.visit.mapSource
+  delete record.visit.houseId
+  const values = new Map([[ACTIVE_VISIT_KEY, JSON.stringify(record)]])
+  const storage = { getItem: (name) => values.get(name) ?? null, setItem: (name, value) => values.set(name, value), removeItem: (name) => values.delete(name) }
+  const loaded = loadActiveVisit(storage)
+  assert.equal(loaded?.session.outcome, 'active')
+  assert.equal(loaded?.session.visitType, 'regular')
+  assert.equal(loaded?.session.ownerMode, 'absent')
+  assert.equal(loaded?.session.mapSource, 'legacy-local-compound')
+  assert.equal(loaded?.session.houseId, null)
+  assert.equal('guardian' in loaded.session, false)
+  assert.equal(values.has(ACTIVE_VISIT_KEY), true)
+})
+
 test('resuming a saved gas visit continues its timer and applies exactly one hit that turn', () => {
   const records = new Map()
   const storage = { getItem: (key) => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: (key) => records.delete(key) }

@@ -1,5 +1,5 @@
 import { TRAP_TYPES } from './traps.js'
-import { createVisitPerkState } from './perks.js'
+import { createVisitPerkState, HOST_PERK_CONFIG } from './perks.js'
 import { EQUIPMENT_CATALOG, toolsForTrapEncounter, consumeToolUse } from './equipment.js'
 import { calculateStepBudget, findShortestPath, isWalkableTile, minimumVisitSteps, stepTarget } from './navigation.js'
 
@@ -12,17 +12,24 @@ export function findPath(compound, visit, start, goal) {
   return findShortestPath(compound, start, goal, visit)
 }
 
-export function createVisit(compound, { id = globalThis.crypto?.randomUUID?.() ?? `visit-${Date.now()}`, startedAt = new Date().toISOString(), perkSelection = {}, equipment = null } = {}) {
+export function createVisit(compound, { id = globalThis.crypto?.randomUUID?.() ?? `visit-${Date.now()}`, startedAt = new Date().toISOString(), perkSelection = {}, equipment = null, visitType = 'regular', ownerMode = 'absent', mapSource = null, houseId = null } = {}) {
   if (!compound || compound.version !== 3 || !compound.map || !Array.isArray(compound.items)) throw new TypeError('A version 3 compound is required.')
   const { entrance, goal, steps: minimumSteps } = minimumVisitSteps(compound)
   const target = { ...goal }
+  const normalizedVisitType = ['challenge', 'player-house'].includes(visitType) ? visitType : 'regular'
+  let normalizedOwnerMode = 'absent'
+  if (normalizedVisitType === 'challenge' && ownerMode === 'ai') normalizedOwnerMode = 'ai'
+  else if (normalizedVisitType !== 'challenge' && ownerMode === 'human') normalizedOwnerMode = 'human'
+  const perks = createVisitPerkState(id, perkSelection)
+  if (normalizedVisitType === 'challenge' && normalizedOwnerMode === 'ai') perks.ownerActor = 'guardian'
   const visit = {
-    id, compoundVersion: compound.version, startedAt, stage: 'outbound', outcome: 'active',
+    id, compoundVersion: compound.version, startedAt, stage: 'outbound', outcome: 'active', visitType: normalizedVisitType, mapSource: mapSource ?? (normalizedVisitType === 'challenge' ? 'challenge-catalog' : normalizedVisitType === 'player-house' ? 'player-house' : 'unspecified'), houseId: houseId ?? null, ownerMode: normalizedOwnerMode,
     entrance, target, minimumSteps, stepBudget: calculateStepBudget(compound), stepWarnings: [],
     guest: { id: `guest-${id}`, name: 'אורח', position: entrance, facing: 'north', status: 'מוכן', health: 100, damageTaken: 0, gasTurnsRemaining: 0, gasExposure: [], stunTurnsRemaining: 0, stepsTaken: 0, progress: 0, turns: 0 },
     trapStates: Object.fromEntries(compound.items.filter((item) => item.type === 'trap').map((trap) => [trap.id, { triggered: false, ignored: false, lockedTurnsRemaining: 0, requiresKey: false, gasTurnsRemaining: 0 }])),
-    perks: createVisitPerkState(id, perkSelection),
+    perks,
     equipment: equipment ? copy(equipment) : { selectedToolIds: [], tools: {} },
+    spectator: { energy: HOST_PERK_CONFIG.energyPerVisit, maxEnergy: HOST_PERK_CONFIG.energyPerVisit, cooldowns: {} },
     pendingAction: null, events: [], reroutes: 0, plannedSteps: 0,
   }
   visit.plannedSteps = minimumSteps
@@ -81,6 +88,13 @@ function applyDamage(visit, damage, source, trap) {
   const guest = visit.guest
   const actualDamage = Math.min(guest.health, Math.max(0, Math.floor(Number(damage) || 0)))
   if (actualDamage <= 0) return 0
+  if (visit.perks?.active?.guest?.includes('emergency-shield')) {
+    visit.perks.active.guest = visit.perks.active.guest.filter((perkId) => perkId !== 'emergency-shield')
+    visit.perks.effectLedger ??= []
+    visit.perks.effectLedger.push(`emergency-shield:${visit.id}:${trap.id}:${visit.guest.turns}`)
+    event(visit, 'shield', `מגן החירום ספג פגיעה של ${actualDamage} נקודות.`, trap.id, { amount: actualDamage, source })
+    return 0
+  }
   guest.health -= actualDamage
   guest.damageTaken += actualDamage
   event(visit, 'damage', `${trap.name}: ${actualDamage} נזק. נותרו ${guest.health} נקודות חיים.`, trap.id, { amount: actualDamage, source, healthAfter: guest.health })
@@ -90,6 +104,15 @@ function applyDamage(visit, damage, source, trap) {
     event(visit, 'death', 'לאורח אזלו נקודות החיים.')
   }
   return actualDamage
+}
+
+const MAX_TRAP_DAMAGE = Math.max(...TRAP_TYPES.electric.strengthOptions.map((option) => option.value)) * 10
+
+function reinforcedValue(visit, trap, baseValue, { damage = false } = {}) {
+  const multiplier = visit.trapStates[trap.id]?.reinforcementMultiplier
+  if (!Number.isFinite(multiplier) || multiplier <= 1) return baseValue
+  const value = Math.ceil(baseValue * multiplier)
+  return damage ? Math.min(MAX_TRAP_DAMAGE, value) : value
 }
 
 function activeGasAt(compound, visit, position) {
@@ -110,7 +133,8 @@ function refreshGasExposure(compound, visit, position) {
 function applyGasDamage(compound, visit, position, damagedThisTurn) {
   for (const trap of refreshGasExposure(compound, visit, position)) {
     if (damagedThisTurn.has(trap.id)) continue
-    const damage = Math.max(0, (Number(trap.effect?.strength) || 1) * 10 - (visit.trapStates[trap.id].gasProtectionAmount ?? 0))
+    const baseDamage = (Number(trap.effect?.strength) || 1) * 10
+    const damage = Math.max(0, reinforcedValue(visit, trap, baseDamage, { damage: true }) - (visit.trapStates[trap.id].gasProtectionAmount ?? 0))
     if (applyDamage(visit, damage, 'gas', trap) > 0) damagedThisTurn.add(trap.id)
     if (visit.outcome !== 'active') return
   }
@@ -122,12 +146,13 @@ function applyTrap(compound, visit, trap, { manual = false, damageReduction = 0,
   state.triggered = true
   const effect = trap.effect ?? TRAP_TYPES[trap.trapType]?.defaultEffect ?? {}
   if (trap.trapType === 'electric') {
-    const damage = Math.max(0, (Number(effect.strength) || 1) * 10 - damageReduction)
-    visit.guest.stunTurnsRemaining = Math.max(visit.guest.stunTurnsRemaining, Number(effect.durationTurns) || 1)
+    const baseDamage = (Number(effect.strength) || 1) * 10
+    const damage = Math.max(0, reinforcedValue(visit, trap, baseDamage, { damage: true }) - damageReduction)
+    visit.guest.stunTurnsRemaining = Math.max(visit.guest.stunTurnsRemaining, reinforcedValue(visit, trap, Number(effect.durationTurns) || 1))
     applyDamage(visit, damage, 'electric', trap)
     if (visit.outcome !== 'active') return
   } else if (trap.trapType === 'floor') {
-    visit.guest.stunTurnsRemaining = Math.max(visit.guest.stunTurnsRemaining, Number(effect.stopTurns) || 1)
+    visit.guest.stunTurnsRemaining = Math.max(visit.guest.stunTurnsRemaining, reinforcedValue(visit, trap, Number(effect.stopTurns) || 1))
     if (effect.kind === 'restart' && !floorRecovery) { visit.guest.position = { ...visit.entrance }; visit.guest.progress = 0; visit.stage = 'outbound'; }
     event(visit, effect.kind === 'restart' && !floorRecovery ? 'restart' : 'delay', effect.kind === 'restart' && !floorRecovery ? 'הרצפה הנופלת החזירה את האורח לכניסה.' : 'האורח נעצר בעקבות הרצפה הנופלת.', trap.id)
   } else if (trap.trapType === 'gas') {
@@ -136,7 +161,7 @@ function applyTrap(compound, visit, trap, { manual = false, damageReduction = 0,
     event(visit, 'gas', `האורח נכנס לענן גז ברדיוס ${effect.radius ?? 1}.`, trap.id)
   } else if (trap.trapType === 'door') {
     if (effect.openMode === 'key') state.requiresKey = true
-    else state.lockedTurnsRemaining = Math.max(0, (Number(effect.lockDuration) || 1) - doorReduction)
+    else state.lockedTurnsRemaining = Math.max(0, reinforcedValue(visit, trap, Number(effect.lockDuration) || 1) - doorReduction)
     if (state.requiresKey || state.lockedTurnsRemaining > 0) visit.reroutes += 1
     event(visit, 'door', effect.openMode === 'key' ? 'הדלת ננעלה ונדרש מפתח.' : `הדלת ננעלה למשך ${state.lockedTurnsRemaining} תורות והאורח מחפש דרך אחרת.`, trap.id)
   }
@@ -347,7 +372,16 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
     session.stepBudget ??= Math.max(calculateStepBudget(record.compound), (session.guest?.stepsTaken ?? 0) + Math.max(1, Math.ceil((session.minimumSteps || 1) * 0.5)))
     session.stepWarnings ??= []
     session.guest.facing ??= 'north'
+    session.ownerMode = session.ownerMode === 'human' ? 'human' : 'absent'
+    session.visitType = 'regular'
+    session.mapSource ??= 'legacy-local-compound'
+    session.houseId ??= null
+    delete session.guardian
     session.equipment ??= { selectedToolIds: [], tools: {} }
+    session.spectator ??= { energy: HOST_PERK_CONFIG.energyPerVisit, maxEnergy: HOST_PERK_CONFIG.energyPerVisit, cooldowns: {} }
+    session.perks ??= createVisitPerkState(session.id)
+    session.perks.effectLedger ??= []
+    delete session.perks.ownerActor
     return { compound: record.compound, session }
   } catch { return null }
 }

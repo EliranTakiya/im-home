@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { EQUIPMENT_CATALOG, loadEquipmentStore, saveEquipmentStore, selectTools, validateToolSelection } from './equipment.js'
 import './EquipmentSelection.css'
 
-export default function EquipmentSelection({ onStart, onCancel }) {
+export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'שלב שני', continueLabel = 'שמירת התיק וכניסה לבית' }) {
   const [store, setStore] = useState(() => loadEquipmentStore())
   const [selected, setSelected] = useState(store.selectedToolIds)
   const [notice, setNotice] = useState('')
@@ -31,7 +31,7 @@ export default function EquipmentSelection({ onStart, onCancel }) {
   }
 
   return <main className="equipment-selection" dir="rtl">
-    <header><button onClick={onCancel}>← חזרה</button><div><span>הכנות לביקור · שלב שני</span><h1>תיק הכלים של האורח</h1></div><b>{usedSpace} / {store.backpackCapacity} מקום</b></header>
+    <header><button onClick={onCancel}>← חזרה</button><div><span>הכנות לביקור · {stepLabel}</span><h1>תיק הכלים של האורח</h1></div><b>{usedSpace} / {store.backpackCapacity} מקום</b></header>
     <p className="equipment-intro">בחרו ציוד לפני הכניסה. הכלים והשימושים שלהם יישמרו בתוך הביקור, וניתן יהיה להפעיל אותם ידנית במפגש מתאים.</p>
     <section className="equipment-grid">{tools.map((tool) => {
       const chosen = selected.includes(tool.id)
@@ -44,6 +44,6 @@ export default function EquipmentSelection({ onStart, onCancel }) {
       </article>
     })}</section>
     {notice && <p className="equipment-notice" role="status">{notice}</p>}
-    <footer><span>המלכודות יופעלו לפי חוקי הביקור הקיימים; הכלי אינו מנטרל אותן אוטומטית.</span><button onClick={start}>שמירת התיק וכניסה לבית ←</button></footer>
+    <footer><span>המלכודות יופעלו לפי חוקי הביקור הקיימים; הכלי אינו מנטרל אותן אוטומטית.</span><button onClick={start}>{continueLabel} ←</button></footer>
   </main>
 }
