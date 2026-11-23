@@ -215,12 +215,12 @@ test('reinforced traps gain 25 percent with the engine damage cap intact', () =>
 })
 
 test('Spectator Control enforces energy, cooldown, stun, and bounded uses', () => {
-  const visit = createVisit(createCompoundData(STARTER_ITEMS), { id: 'spectator-control-visit' })
+  const visit = createVisit(createCompoundData(STARTER_ITEMS), { id: 'spectator-control-visit', ownerMode: 'human' })
   const perk = PERK_CATALOG.find((entry) => entry.id === 'spectator-control')
   assert.equal(hostPerkAvailability(visit, perk, 1000).ok, true)
   const activated = applySelectedPerkEffect(visit, perk, { activationId: 'spectator-control-visit:owner:spectator-control:1', now: 1000 })
   assert.equal(activated.visit.spectator.energy, 25)
-  assert.equal(activated.visit.guest.stunTurnsRemaining, 1)
+  assert.equal(activated.visit.spectator.blockedMovePending, true)
   assert.equal(hostPerkAvailability(activated.visit, perk, 2000).reason, 'cooldown')
   const resumed = structuredClone(activated.visit)
   resumed.guest.stunTurnsRemaining = 0

@@ -185,7 +185,9 @@ test('active visits survive reload with timers, exposure, events, and a private 
   visit.perks.events.push({ turn: 4, type: 'perk-activated', perkId: 'trap-map' })
   saveActiveVisit(compound, visit, storage)
   const loaded = loadActiveVisit(storage)
-  assert.deepEqual(loaded.session, visit)
+  const expectedVisit = structuredClone(visit)
+  expectedVisit.gameplayTimer = loaded.session.gameplayTimer
+  assert.deepEqual(loaded.session, expectedVisit)
   assert.equal(loaded.session.guest.facing, 'east')
   assert.deepEqual(loaded.compound, compound)
   assert.equal(records.get('im-home-compound'), 'untouched-compound-data')

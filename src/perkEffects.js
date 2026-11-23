@@ -8,6 +8,7 @@ export function hostPerkAvailability(visit, perk, now = Date.now()) {
     const cooldownUntil = visit.spectator?.cooldowns?.[perk.id] ?? 0
     if (cooldownUntil > now) return { ok: false, reason: 'cooldown', remainingMs: cooldownUntil - now }
     if ((visit.guest?.stunTurnsRemaining ?? 0) > 0) return { ok: false, reason: 'guest-already-stunned' }
+    if (visit.spectator?.blockedMovePending) return { ok: false, reason: 'guest-already-stunned' }
   }
   return { ok: true }
 }
@@ -19,6 +20,9 @@ export function hasNearbyTrapWarning(compound, visit, radius = 2) {
 
 export function applySelectedPerkEffect(currentVisit, perk, { trapId = null, activationId, now = Date.now() } = {}) {
   if (!currentVisit || !perk || !activationId) return { ok: false, error: 'invalid-effect-context' }
+  const guardianOwner = perk.role === 'owner' && currentVisit.visitType === 'challenge' && currentVisit.ownerMode === 'ai' && currentVisit.perks?.ownerActor === 'guardian'
+  const humanOwner = perk.role === 'owner' && currentVisit.visitType === 'regular' && currentVisit.ownerMode === 'human'
+  if (perk.role === 'owner' && !guardianOwner && !humanOwner || perk.role === 'guest' && currentVisit.visitType === 'challenge' && currentVisit.ownerMode === 'ai' && currentVisit.perks?.ownerActor !== 'guardian') return { ok: false, error: 'unauthorized-actor' }
   if (currentVisit.perks?.effectLedger?.includes(activationId)) return { ok: false, duplicate: true, visit: currentVisit }
   const visit = structuredClone(currentVisit)
   visit.perks.effectLedger ??= []
@@ -42,7 +46,7 @@ export function applySelectedPerkEffect(currentVisit, perk, { trapId = null, act
     if ((visit.guest.stunTurnsRemaining ?? 0) > 0) return { ok: false, error: 'guest-already-stunned' }
     visit.spectator.energy -= perk.effectConfig.energyCost
     visit.spectator.cooldowns[perk.id] = now + perk.effectConfig.cooldownMs
-    visit.guest.stunTurnsRemaining = Math.max(visit.guest.stunTurnsRemaining, perk.effectConfig.stunTurns)
+    visit.spectator.blockedMovePending = true
     log(`${perk.name} עצר את האורח לתור אחד.`, { energySpent: perk.effectConfig.energyCost })
   } else if (perk.effect === 'absorb-next-trap-hit') {
     log(`${perk.name} מוכן לספוג את הפגיעה הבאה.`)

@@ -1,5 +1,6 @@
 import { CHALLENGE_HOUSES, getChallengeHouse } from './houses.js'
 import { calculateVisitScore } from '../visitEngine.js'
+import { elapsedGameplayMs, serializeVisitWithPausedTimer, resumeGameplayTimer } from '../gameTimer.js'
 
 export const CHALLENGE_PROGRESS_KEY = 'im-home-challenge-progress-v1'
 export const ACTIVE_CHALLENGE_KEY = 'im-home-active-challenge-v1'
@@ -108,6 +109,7 @@ export function recordChallengeAttempt(progressValue, houseId, visit, { endedAt 
     houseId,
     houseVersion: house.version,
     startedAt: visit.startedAt,
+    elapsedGameplayMs: elapsedGameplayMs(visit),
     endedAt,
     outcome: visit.outcome,
     medal,
@@ -151,6 +153,10 @@ export function loadActiveChallenge(storage = globalThis.localStorage) {
     const house = getChallengeHouse(record?.houseId)
     if (record?.version !== 1 || !house || record.houseVersion !== house.version || record.visit?.outcome !== 'active' || record.compound?.version !== 3) return null
     if ((record.visit.visitType && record.visit.visitType !== 'challenge') || (record.visit.mapSource && record.visit.mapSource !== 'challenge-catalog') || (record.visit.houseId && record.visit.houseId !== record.houseId)) return null
+    record.visit.gameplayTimer ??= { elapsedMs: 0, runningSince: null }
+    record.visit.spectator ??= { energy: 50, maxEnergy: 50, cooldowns: {}, blockedMovePending: false }
+    record.visit.spectator.blockedMovePending ??= false
+    record.visit = resumeGameplayTimer(record.visit)
     return record
   } catch { return null }
 }
@@ -159,7 +165,7 @@ export function saveActiveChallenge({ houseId, compound, visit }, storage = glob
   const house = getChallengeHouse(houseId)
   if (!house || !compound || !visit || visit.outcome !== 'active' || visit.visitType !== 'challenge' || visit.mapSource !== 'challenge-catalog' || visit.houseId !== houseId) return false
   try {
-    storage?.setItem(ACTIVE_CHALLENGE_KEY, JSON.stringify({ version: 1, houseId, houseVersion: house.version, compound: structuredClone(compound), visit: structuredClone(visit), savedAt: new Date().toISOString() }))
+    storage?.setItem(ACTIVE_CHALLENGE_KEY, JSON.stringify({ version: 1, houseId, houseVersion: house.version, compound: structuredClone(compound), visit: serializeVisitWithPausedTimer(visit), savedAt: new Date().toISOString() }))
     return Boolean(storage)
   } catch { return false }
 }

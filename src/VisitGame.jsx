@@ -9,6 +9,8 @@ import { clearActiveChallenge, saveActiveChallenge } from './challenges/progress
 import ChallengeResults from './ChallengeResults.jsx'
 import { applySelectedPerkEffect, hasNearbyTrapWarning, hostPerkAvailability } from './perkEffects.js'
 import { createGuardianState, evaluateGuardian, guardianAllowedForVisit, humanOwnerCanAct, GUARDIAN_DIFFICULTIES } from './guardianAI.js'
+import { elapsedGameplayMs, formatGameplayTime, pauseGameplayTimer, resumeGameplayTimer } from './gameTimer.js'
+import { createVisitTrapPlacement, legalVisitTrapTiles } from './trapPlacement.js'
 import './VisitGame.css'
 
 const trapColors = { electric: '⚡', floor: '⌄', gas: '◉', door: '▣' }
@@ -83,7 +85,7 @@ function describeToolImpact(tool) {
 function attachGuardianState(current, guardianState) {
   const knownEvents = current.guardian?.eventLog?.length ?? 0
   const newEvents = (guardianState?.eventLog ?? []).slice(knownEvents)
-  const messageFor = (type) => type === 'entered' ? 'שומר הבית נכנס למתחם.' : type === 'retreated' || type === 'retreated-early' ? 'שומר הבית נסוג ונעלם.' : 'שומר הבית הפעיל יכולת.'
+  const messageFor = (type) => type === 'entered' ? 'שומר הבית נכנס למתחם.' : type === 'retreated' || type === 'retreated-early' ? 'שומר הבית נסוג ונעלם.' : type === 'trap-placed' ? 'שומר הבית הציב מלכודת במסלול.' : 'שומר הבית הפעיל יכולת.'
   return {
     ...current,
     guardian: guardianState,
@@ -112,16 +114,17 @@ function TrapDecisionDialog({ trap, tools, actionKind, disabled, onResolve }) {
   </div>
 }
 export default function VisitGame({ compound, initialVisit, onHome, onRestart, isActive = true, challengeHouse = null, onChallengeResult }) {
+  const [activeCompound, setActiveCompound] = useState(compound)
   const [visit, setVisit] = useState(() => {
     if (!challengeHouse) {
       const regularVisit = { ...initialVisit }
       delete regularVisit.guardian
       if (regularVisit.perks) delete regularVisit.perks.ownerActor
-      return { ...regularVisit, visitType: ['regular', 'player-house'].includes(initialVisit.visitType) ? initialVisit.visitType : 'regular', mapSource: initialVisit.mapSource ?? 'legacy-local-compound', houseId: initialVisit.houseId ?? null, ownerMode: initialVisit.ownerMode === 'human' ? 'human' : 'absent' }
+      return resumeGameplayTimer({ ...regularVisit, visitType: ['regular', 'player-house'].includes(initialVisit.visitType) ? initialVisit.visitType : 'regular', mapSource: initialVisit.mapSource ?? 'legacy-local-compound', houseId: initialVisit.houseId ?? null, ownerMode: initialVisit.ownerMode === 'human' && initialVisit.visitType !== 'player-house' ? 'human' : 'absent' })
     }
     const configuredPerks = challengeHouse.guardianPerks ?? []
     const perks = initialVisit.perks ?? { selections: { owner: configuredPerks, guest: [] }, active: { owner: [], guest: [] }, activations: { owner: {}, guest: {} }, effectLedger: [], events: [] }
-    return {
+    return resumeGameplayTimer({
       ...initialVisit,
       visitType: 'challenge',
       mapSource: initialVisit.mapSource ?? 'challenge-catalog',
@@ -129,12 +132,14 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
       ownerMode: 'ai',
       guardian: initialVisit.guardian ?? createGuardianState(initialVisit.id, challengeHouse.guardianDifficulty ?? 'normal'),
       perks: { ...perks, ownerActor: 'guardian', selections: { ...perks.selections, owner: perks.selections?.owner?.length ? perks.selections.owner : configuredPerks } },
-    }
+    })
   })
   const [auto, setAuto] = useState(false)
   const [decisionSubmittedFor, setDecisionSubmittedFor] = useState(null)
   const [equipmentOpen, setEquipmentOpen] = useState(false)
   const [hostTrapId, setHostTrapId] = useState('')
+  const [hostTrapType, setHostTrapType] = useState('electric')
+  const [hostTrapTile, setHostTrapTile] = useState('')
   const [clockNow, setClockNow] = useState(0)
   const [perkStore, setPerkStore] = useState(() => loadPerkStore())
   const [perkNotice, setPerkNotice] = useState('')
@@ -174,41 +179,41 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
       if (visitRef.current.pendingAction) return
       event.preventDefault()
       stopAutoMovement()
-      setVisit((current) => advanceVisit(compound, current, command))
+      setVisit((current) => advanceVisit(activeCompound, current, command))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [compound, isActive])
+  }, [activeCompound, isActive])
 
   useEffect(() => {
     if (!auto || !isActive || terminal || visit.pendingAction) return undefined
-    const timer = window.setInterval(() => setVisit((current) => advanceVisit(compound, current)), 650)
+    const timer = window.setInterval(() => setVisit((current) => advanceVisit(activeCompound, current)), 650)
     autoTimerRef.current = timer
     return () => {
       window.clearInterval(timer)
       if (autoTimerRef.current === timer) autoTimerRef.current = null
     }
-  }, [auto, compound, isActive, terminal, visit.pendingAction])
+  }, [auto, activeCompound, isActive, terminal, visit.pendingAction])
 
   useEffect(() => {
     if (challengeHouse) {
       if (terminal) {
         challengeResultRef.current?.(visit, challengeHouse.id)
         clearActiveChallenge(globalThis.localStorage, visit.id)
-      } else saveActiveChallenge({ houseId: challengeHouse.id, compound, visit })
+      } else saveActiveChallenge({ houseId: challengeHouse.id, compound: activeCompound, visit })
     } else if (terminal) {
       saveVisitResult(visit)
       clearActiveVisit(globalThis.localStorage, visit.id)
-    } else saveActiveVisit(compound, visit)
-  }, [challengeHouse, compound, terminal, visit])
+    } else saveActiveVisit(activeCompound, visit)
+  }, [challengeHouse, activeCompound, terminal, visit])
 
   useEffect(() => {
     const saveBeforePageExit = () => {
       const latestVisit = visitRef.current
       if (challengeHouse) {
-        if (latestVisit.outcome === 'active') saveActiveChallenge({ houseId: challengeHouse.id, compound, visit: latestVisit })
+        if (latestVisit.outcome === 'active') saveActiveChallenge({ houseId: challengeHouse.id, compound: activeCompound, visit: latestVisit })
         else { challengeResultRef.current?.(latestVisit, challengeHouse.id); clearActiveChallenge(globalThis.localStorage, latestVisit.id) }
-      } else if (latestVisit.outcome === 'active') saveActiveVisit(compound, latestVisit)
+      } else if (latestVisit.outcome === 'active') saveActiveVisit(activeCompound, latestVisit)
       else {
         saveVisitResult(latestVisit)
         clearActiveVisit(globalThis.localStorage, latestVisit.id)
@@ -216,7 +221,7 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
     }
     window.addEventListener('pagehide', saveBeforePageExit)
     return () => window.removeEventListener('pagehide', saveBeforePageExit)
-  }, [challengeHouse, compound])
+  }, [challengeHouse, activeCompound])
 
   const guest = visit.guest
   const trapsFound = Object.values(visit.trapStates).filter((state) => state.triggered).length
@@ -225,17 +230,20 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
   const latestDamage = [...visit.events].reverse().find((entry) => entry.type === 'damage' && entry.turn === guest.turns)
   const ownerSelectedPerks = visit.perks?.selections?.owner ?? []
   const ownerMapActive = canRevealHiddenTraps(visit, 'owner')
-  const hostTrapChoices = compound.items.filter((item) => item.type === 'trap' && !visit.trapStates[item.id]?.triggered)
+  const hostTrapChoices = activeCompound.items.filter((item) => item.type === 'trap' && !visit.trapStates[item.id]?.triggered)
   const selectedHostTrapId = hostTrapChoices.some((trap) => trap.id === hostTrapId) ? hostTrapId : hostTrapChoices[0]?.id ?? ''
   const guestSelectedPerks = visit.perks?.selections?.guest ?? []
   const trapWarningActive = visit.perks?.active?.guest?.includes('trap-warning') === true
-  const nearbyTrapWarning = trapWarningActive && hasNearbyTrapWarning(compound, visit, 2)
+  const nearbyTrapWarning = trapWarningActive && hasNearbyTrapWarning(activeCompound, visit, 2)
   const score = calculateVisitScore(visit)
-  const pendingTrap = visit.pendingAction ? compound.items.find((item) => item.id === visit.pendingAction.trapId) : null
+  const gameplayTime = formatGameplayTime(elapsedGameplayMs(visit, clockNow))
+  const ownerPlacementTiles = legalVisitTrapTiles(activeCompound, visit)
+  const selectedOwnerTile = ownerPlacementTiles.some((point) => `${point.x}:${point.y}` === hostTrapTile) ? hostTrapTile : ownerPlacementTiles[0] ? `${ownerPlacementTiles[0].x}:${ownerPlacementTiles[0].y}` : ''
+  const pendingTrap = visit.pendingAction ? activeCompound.items.find((item) => item.id === visit.pendingAction.trapId) : null
   const pendingTools = pendingTrap ? toolsForTrapEncounter(visit.equipment, pendingTrap) : []
   const pendingDecisionKey = visit.pendingAction ? `${visit.id}:${visit.pendingAction.trapId}:${visit.pendingAction.kind}` : null
   const decisionSubmitting = decisionSubmittedFor === pendingDecisionKey
-  const detectedTraps = compound.items.filter((item) => item.type === 'trap' && equipmentDetectsTrap(visit.equipment, item, guest.position))
+  const detectedTraps = activeCompound.items.filter((item) => item.type === 'trap' && equipmentDetectsTrap(visit.equipment, item, guest.position))
   const detectionDescription = (trap) => trap.trapType === 'door'
     ? trap.effect?.openMode === 'key' ? 'דלת זו דורשת מפתח; ערכת הדלתות אינה פותחת אותה.' : `נעילה מתוזמנת: ${trap.effect?.lockDuration ?? 1} תורות.`
     : trap.trapType === 'gas' ? `אזור גז ברדיוס ${trap.effect?.radius ?? 1}.`
@@ -245,16 +253,17 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
   function leaveVisit() {
     stopAutoMovement()
     setEquipmentOpen(false)
-    if (challengeHouse && visit.outcome === 'active') saveActiveChallenge({ houseId: challengeHouse.id, compound, visit })
-    else if (challengeHouse) { challengeResultRef.current?.(visit, challengeHouse.id); clearActiveChallenge(globalThis.localStorage, visit.id) }
-    else if (visit.outcome === 'active') saveActiveVisit(compound, visit)
-    else saveVisitResult(visit)
-    onHome(visit)
+    const pausedVisit = pauseGameplayTimer(visit)
+    if (challengeHouse && pausedVisit.outcome === 'active') saveActiveChallenge({ houseId: challengeHouse.id, compound: activeCompound, visit: pausedVisit })
+    else if (challengeHouse) { challengeResultRef.current?.(pausedVisit, challengeHouse.id); clearActiveChallenge(globalThis.localStorage, pausedVisit.id) }
+    else if (pausedVisit.outcome === 'active') saveActiveVisit(activeCompound, pausedVisit)
+    else saveVisitResult(pausedVisit)
+    onHome(pausedVisit)
   }
 
   function moveGuest(command) {
     stopAutoMovement()
-    setVisit((current) => advanceVisit(compound, current, command))
+    setVisit((current) => advanceVisit(activeCompound, current, command))
   }
 
   function activateVisitPerk(role, perkId, trapId = null, options = {}) {
@@ -263,7 +272,7 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
     const isOwnerPerk = role === 'owner'
     const isGuardian = actor === 'guardian'
     const ownerAuthorized = isGuardian
-      ? Boolean(challengeHouse) && guardianAllowedForVisit({ visitType: current.visitType, ownerMode: current.ownerMode }) && current.guardian?.phase === 'present'
+      ? Boolean(challengeHouse) && guardianAllowedForVisit({ visitType: current.visitType, ownerMode: current.ownerMode }) && (guardianState?.phase ?? current.guardian?.phase) === 'present'
       : humanOwnerCanAct(current, Boolean(challengeHouse))
     if (isOwnerPerk && !ownerAuthorized) { setPerkNotice('Host Perks זמינים רק לבעלים אנושי שהצטרף או ל־AI בבית אתגר.'); return }
     if (!current.perks?.selections?.[role]?.includes(perkId)) return
@@ -274,7 +283,7 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
       if (!availability.ok) { setPerkNotice(availability.reason === 'energy' ? 'אין מספיק אנרגיה להפעלת Spectator Control.' : availability.reason === 'cooldown' ? 'Spectator Control עדיין בהמתנה.' : 'האורח כבר עצור.'); return }
     }
     if (perkId === 'trap-reinforcement') {
-      const targetTrap = compound.items.find((item) => item.id === trapId && item.type === 'trap')
+      const targetTrap = activeCompound.items.find((item) => item.id === trapId && item.type === 'trap')
       if (!targetTrap || current.trapStates[targetTrap.id]?.triggered || current.trapStates[targetTrap.id]?.reinforcementMultiplier) { setPerkNotice('בחרו מלכודת פעילה שטרם חוזקה.'); return }
     }
     if (perkId === 'extra-steps') {
@@ -295,8 +304,8 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
     const effectedVisit = applied.visit
     if (!savePerkStore(activated.store)) { setPerkNotice('לא ניתן לשמור את השימוש ביכולת במכשיר הזה.'); return }
     const saved = challengeHouse
-      ? saveActiveChallenge({ houseId: challengeHouse.id, compound, visit: effectedVisit })
-      : saveActiveVisit(compound, effectedVisit)
+      ? saveActiveChallenge({ houseId: challengeHouse.id, compound: activeCompound, visit: effectedVisit })
+      : saveActiveVisit(activeCompound, effectedVisit)
     if (!saved) { setPerkNotice('לא ניתן לשמור את מצב הביקור ואת הפעלת היכולת.'); return }
     setPerkStore(activated.store)
     setPerkNotice(`${definition.name} הופעל.`)
@@ -311,9 +320,16 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
       const current = visitRef.current
       if (current.outcome !== 'active') return
       const guardian = current.guardian ?? createGuardianState(current.id)
-      const decision = evaluateGuardian(guardian, compound, current)
+      const decision = evaluateGuardian(guardian, activeCompound, current)
       if (!decision.changed) return
-      if (decision.action) {
+      if (decision.action?.type === 'place-trap') {
+        const placement = createVisitTrapPlacement(activeCompound, current, { x: decision.action.x, y: decision.action.y, trapType: decision.action.trapType, id: `guardian-trap-${current.id}-${decision.guardian.trapsPlaced}` })
+        if (!placement.ok) setVisit(attachGuardianState(current, { ...decision.guardian, trapsPlaced: Math.max(0, (decision.guardian.trapsPlaced ?? 1) - 1) }))
+        else {
+          setActiveCompound(placement.compound)
+          setVisit(attachGuardianState(placement.visit, decision.guardian))
+        }
+      } else if (decision.action) {
         activatePerkRef.current?.('owner', decision.action.perkId, decision.action.trapId ?? null, {
           actor: 'guardian', baseVisit: current, guardianState: decision.guardian,
         })
@@ -322,13 +338,13 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
       }
     }, 500)
     return () => window.clearInterval(timer)
-  }, [challengeHouse, compound, isActive, terminal, visit.ownerMode, visit.visitType])
+  }, [challengeHouse, activeCompound, isActive, terminal, visit.ownerMode, visit.visitType])
 
   useEffect(() => {
-    if (challengeHouse || !isActive || visit.ownerMode !== 'human') return undefined
+    if (!isActive) return undefined
     const timer = window.setInterval(() => setClockNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [challengeHouse, isActive, visit.ownerMode])
+  }, [isActive])
 
   function resolveTrapDecision(activate, toolId = null) {
     const pendingAction = visitRef.current.pendingAction
@@ -338,12 +354,23 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
     decisionLockRef.current = decisionKey
     setDecisionSubmittedFor(decisionKey)
     stopAutoMovement()
-    setVisit((current) => resolvePendingTrap(compound, current, activate, toolId))
+    setVisit((current) => resolvePendingTrap(activeCompound, current, activate, toolId))
   }
 
   function toggleAutoMovement() {
     if (auto) stopAutoMovement()
     else setAuto(true)
+  }
+
+  function placeOwnerTrap() {
+    const current = visitRef.current
+    if (!humanOwnerCanAct(current) || current.outcome !== 'active' || !hostTrapTile) return
+    const [x, y] = hostTrapTile.split(':').map(Number)
+    const placement = createVisitTrapPlacement(activeCompound, current, { x, y, trapType: hostTrapType, id: `owner-trap-${current.id}-${(current.runtimeTrapsPlaced ?? 0) + 1}` })
+    if (!placement.ok) { setPerkNotice('אי אפשר להציב מלכודת במשבצת הזאת בלי לחסום את היעד.'); return }
+    setActiveCompound(placement.compound)
+    setVisit({ ...placement.visit, runtimeTrapsPlaced: (current.runtimeTrapsPlaced ?? 0) + 1 })
+    setPerkNotice(`${placement.trap.name} הוצבה בעלות ${placement.trap.price}.`)
   }
 
   const theme = challengeHouse?.theme
@@ -356,7 +383,8 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
         <div className="visit-panel-heading"><div><span>{challengeHouse ? `${challengeHouse.name} · בית אתגר` : `אורח #${visit.id.slice(-5)}`}</span><h2>{challengeHouse?.title ?? 'מבט על המתחם'}</h2></div><span className={`visit-live ${terminal ? 'visit-ended' : ''}`}><i /> {status}</span></div>
         <div className="visit-hud" aria-label="מצב משחק">
           <div className={`visit-hud-item visit-hud-health ${latestDamage ? 'visit-hud-damaged' : ''}`}><span>חיים</span><b key={`health-${guest.health}-${guest.turns}`}>{guest.health}</b></div>
-          <div className="visit-hud-item visit-hud-steps"><span>צעדים נותרו</span><b>{Math.max(0, visit.stepBudget - guest.stepsTaken)}</b></div>
+            <div className="visit-hud-item visit-hud-steps"><span>צעדים נותרו</span><b>{Math.max(0, visit.stepBudget - guest.stepsTaken)}</b></div>
+          <div className="visit-hud-item visit-hud-time"><span>זמן משחק</span><b>{gameplayTime}</b></div>
           <button className="visit-hud-item visit-hud-bag" aria-expanded={equipmentOpen} onClick={() => setEquipmentOpen((open) => !open)}><span>תיק</span><b>{availableToolCount}/{totalToolCount}</b></button>
           <div className="visit-hud-item"><span>מבט</span><b>{({ north: 'צפון', east: 'מזרח', south: 'דרום', west: 'מערב' })[guest.facing ?? 'north']}</b></div>
           <div className="visit-hud-item visit-hud-auto"><span>צעידה</span><b>{auto ? 'אוטומטית' : 'ידנית'}</b></div>
@@ -369,16 +397,16 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
         <div className="visit-hud-actions">
           {terminal
             ? <button className="visit-hud-step" onClick={() => { stopAutoMovement(); onRestart() }}>התחילו ביקור חדש</button>
-            : <><button className="visit-hud-step" disabled={Boolean(visit.pendingAction)} onClick={() => setVisit((current) => advanceVisit(compound, current))}>התקדם צעד</button><button className="visit-hud-auto-button" disabled={Boolean(visit.pendingAction)} aria-pressed={auto} onClick={toggleAutoMovement}>{auto ? 'עצור הליכה אוטומטית' : 'הליכה אוטומטית'}</button></>}
+            : <><button className="visit-hud-step" disabled={Boolean(visit.pendingAction)} onClick={() => setVisit((current) => advanceVisit(activeCompound, current))}>התקדם צעד</button><button className="visit-hud-auto-button" disabled={Boolean(visit.pendingAction)} aria-pressed={auto} onClick={toggleAutoMovement}>{auto ? 'עצור הליכה אוטומטית' : 'הליכה אוטומטית'}</button></>}
         </div>
         <div className="visit-map-stage">
-          <VisitMap compound={compound} visit={visit} decor={challengeHouse?.decor ?? []} material={challengeHouse?.theme?.grain} guardian={challengeHouse && visit.ownerMode === 'ai' ? visit.guardian : null} ownerView={!challengeHouse && visit.ownerMode === 'human'} />
+          <VisitMap compound={activeCompound} visit={visit} decor={challengeHouse?.decor ?? []} material={challengeHouse?.theme?.grain} guardian={challengeHouse && visit.ownerMode === 'ai' ? visit.guardian : null} ownerView={!challengeHouse && visit.ownerMode === 'human'} />
           {challengeHouse ? <section className="guardian-status-panel" aria-label="שומר הבית של אתגר המחשב">
             <div><span className="guardian-status-icon" aria-hidden="true">◆</span><div><b>בעל הבית: מחשב</b><small>{({ waiting: 'ממתין להזדמנות', present: 'נמצא במתחם', absent: 'לא יופיע בביקור הזה', retreated: 'נסוג מהמתחם' })[visit.guardian?.phase] ?? 'פעיל'}</small></div></div>
             <span className="guardian-locked-difficulty" aria-label="רמת קושי נעולה">{GUARDIAN_DIFFICULTIES[visit.guardian?.difficulty ?? 'normal']?.label ?? 'רגיל'} · קושי נעול</span>
           </section> : <section className={`guardian-status-panel ${visit.ownerMode === 'human' ? 'guardian-human-present' : 'guardian-owner-absent'}`} aria-label="נוכחות בעל המתחם">
             <div><span className="guardian-status-icon" aria-hidden="true">⌂</span><div><b>{visit.ownerMode === 'human' ? 'בעל המתחם משתתף' : 'המתחם ללא שמירה אנושית'}</b><small>{visit.ownerMode === 'human' ? 'הבעלים מחובר ושולט ב־Host Perks.' : 'לא הופעל AI Guardian; הביקור מתנהל ללא בעלים.'}</small></div></div>
-            <button className="owner-participation-toggle" disabled={terminal} onClick={() => setVisit((current) => ({ ...current, ownerMode: current.ownerMode === 'human' ? 'absent' : 'human' }))}>{visit.ownerMode === 'human' ? 'הבעלים עזב' : 'בעל הבית מצטרף'}</button>
+            <button className="owner-participation-toggle" disabled={terminal || visit.visitType === 'player-house'} onClick={() => setVisit((current) => current.visitType === 'regular' ? ({ ...current, ownerMode: current.ownerMode === 'human' ? 'absent' : 'human' }) : current)}>{visit.ownerMode === 'human' ? 'הבעלים עזב' : visit.visitType === 'player-house' ? 'הרשאות הבעלים אינן זמינות לאורח' : 'בעל הבית מצטרף'}</button>
           </section>}
           {perkNotice && <small className="visit-perk-notice" role="status">{perkNotice}</small>}
           <DirectionPad disabled={terminal || Boolean(visit.pendingAction)} facing={guest.facing ?? 'north'} onMove={moveGuest} />
@@ -417,8 +445,9 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
             </section>}
         
         
+        {humanOwnerCanAct(visit) && <section className="visit-controls visit-host-perks" aria-label="הגנת בעל הבית בזמן אמת"><div className="visit-perk-panel-heading"><b>הצבת מלכודת בזמן אמת</b><span>{visit.runtimeTrapsPlaced ?? 0} הוצבו</span></div><select aria-label="בחירת משבצת למלכודת" value={selectedOwnerTile} onChange={(event) => setHostTrapTile(event.target.value)}>{ownerPlacementTiles.map((point) => <option key={`${point.x}:${point.y}`} value={`${point.x}:${point.y}`}>{String.fromCharCode(65 + point.x)}{point.y + 1}</option>)}</select><select aria-label="סוג המלכודת להצבה" value={hostTrapType} onChange={(event) => setHostTrapType(event.target.value)}>{Object.values(TRAP_TYPES).map((trap) => <option key={trap.id} value={trap.id}>{trap.name} · {trap.price}</option>)}</select><button disabled={terminal || Boolean(visit.pendingAction) || !selectedOwnerTile} onClick={placeOwnerTrap}>הציבו מלכודת</button><small>המלכודת תופיע במפה ותפעל בביקור הנוכחי. המחיר ומגבלת הבנייה הקיימים נאכפים.</small></section>}
         {detectedTraps.length > 0 && <details className="visit-details"><summary>סכנות שזוהו ({detectedTraps.length})</summary><div className="equipment-detections">{detectedTraps.map((trap) => <span key={trap.id}>{EQUIPMENT_CATALOG[Object.values(visit.equipment?.tools ?? {}).find((tool) => EQUIPMENT_CATALOG[tool.id]?.compatibleTrapTypes.includes(trap.trapType))?.id]?.name}: {detectionDescription(trap)}</span>)}</div></details>}<details className="visit-details"><summary>יומן ותוצאות</summary>
-          <section className="visit-summary"><span className="visit-kicker">תוצאות בזמן אמת</span><div><span>צעדים</span><b>{guest.stepsTaken}</b></div><div><span>מלכודות שהופעלו</span><b>{trapsFound}</b></div><div><span>נזק מצטבר</span><b>{guest.damageTaken}</b></div><div><span>חיפושי מסלול מחדש</span><b>{visit.reroutes}</b></div></section>
+          <section className="visit-summary"><span className="visit-kicker">תוצאות בזמן אמת</span><div><span>זמן משחק</span><b>{gameplayTime}</b></div><div><span>צעדים</span><b>{guest.stepsTaken}</b></div><div><span>מלכודות שהופעלו</span><b>{trapsFound}</b></div><div><span>נזק מצטבר</span><b>{guest.damageTaken}</b></div><div><span>חיפושי מסלול מחדש</span><b>{visit.reroutes}</b></div></section>
           <section className="visit-log"><span className="visit-kicker">יומן ביקור</span>{visit.events.length ? <ol>{[...visit.events].reverse().slice(0, 5).map((entry, index) => <li key={`${entry.turn}-${entry.type}-${index}`}><i />{entry.message}</li>)}</ol> : <p>הביקור התחיל. האורח ממתין לפקודה.</p>}</section>
           {terminal && <section className="visit-score-panel"><span className="visit-kicker">ניקוד ביקור</span><b>{score.total}</b><small>יעילות {score.efficiency} · חיים {score.survival} · התמודדות {score.handledTraps} · ציוד {score.equipment} · השלמה {score.completion}</small></section>}
         </details>
@@ -427,3 +456,7 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
     {challengeHouse && terminal && <ChallengeResults house={challengeHouse} visit={visit} onReplay={onRestart} onHouses={() => onHome(visit)} />}
   </main>
 }
+
+
+
+

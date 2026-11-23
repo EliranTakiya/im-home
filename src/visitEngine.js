@@ -2,6 +2,7 @@ import { TRAP_TYPES } from './traps.js'
 import { createVisitPerkState, HOST_PERK_CONFIG } from './perks.js'
 import { EQUIPMENT_CATALOG, toolsForTrapEncounter, consumeToolUse } from './equipment.js'
 import { calculateStepBudget, findShortestPath, isWalkableTile, minimumVisitSteps, stepTarget } from './navigation.js'
+import { createGameplayTimer, elapsedGameplayMs, serializeVisitWithPausedTimer, resumeGameplayTimer } from './gameTimer.js'
 
 export const VISIT_RESULTS_KEY = 'im-home-visit-results-v1'
 export const ACTIVE_VISIT_KEY = 'im-home-active-visit-v1'
@@ -19,17 +20,17 @@ export function createVisit(compound, { id = globalThis.crypto?.randomUUID?.() ?
   const normalizedVisitType = ['challenge', 'player-house'].includes(visitType) ? visitType : 'regular'
   let normalizedOwnerMode = 'absent'
   if (normalizedVisitType === 'challenge' && ownerMode === 'ai') normalizedOwnerMode = 'ai'
-  else if (normalizedVisitType !== 'challenge' && ownerMode === 'human') normalizedOwnerMode = 'human'
+  else if (normalizedVisitType === 'regular' && ownerMode === 'human') normalizedOwnerMode = 'human'
   const perks = createVisitPerkState(id, perkSelection)
   if (normalizedVisitType === 'challenge' && normalizedOwnerMode === 'ai') perks.ownerActor = 'guardian'
   const visit = {
-    id, compoundVersion: compound.version, startedAt, stage: 'outbound', outcome: 'active', visitType: normalizedVisitType, mapSource: mapSource ?? (normalizedVisitType === 'challenge' ? 'challenge-catalog' : normalizedVisitType === 'player-house' ? 'player-house' : 'unspecified'), houseId: houseId ?? null, ownerMode: normalizedOwnerMode,
+    id, compoundVersion: compound.version, startedAt, gameplayTimer: createGameplayTimer(), stage: 'outbound', outcome: 'active', visitType: normalizedVisitType, mapSource: mapSource ?? (normalizedVisitType === 'challenge' ? 'challenge-catalog' : normalizedVisitType === 'player-house' ? 'player-house' : 'unspecified'), houseId: houseId ?? null, ownerMode: normalizedOwnerMode,
     entrance, target, minimumSteps, stepBudget: calculateStepBudget(compound), stepWarnings: [],
     guest: { id: `guest-${id}`, name: 'אורח', position: entrance, facing: 'north', status: 'מוכן', health: 100, damageTaken: 0, gasTurnsRemaining: 0, gasExposure: [], stunTurnsRemaining: 0, stepsTaken: 0, progress: 0, turns: 0 },
     trapStates: Object.fromEntries(compound.items.filter((item) => item.type === 'trap').map((trap) => [trap.id, { triggered: false, ignored: false, lockedTurnsRemaining: 0, requiresKey: false, gasTurnsRemaining: 0 }])),
     perks,
     equipment: equipment ? copy(equipment) : { selectedToolIds: [], tools: {} },
-    spectator: { energy: HOST_PERK_CONFIG.energyPerVisit, maxEnergy: HOST_PERK_CONFIG.energyPerVisit, cooldowns: {} },
+    spectator: { energy: HOST_PERK_CONFIG.energyPerVisit, maxEnergy: HOST_PERK_CONFIG.energyPerVisit, cooldowns: {}, blockedMovePending: false },
     pendingAction: null, events: [], reroutes: 0, plannedSteps: 0,
   }
   visit.plannedSteps = minimumSteps
@@ -216,7 +217,7 @@ function resolveAutomaticTrap(compound, visit, trap, position, activeGasTrapIds,
   return visit
 }
 
-export function advanceVisit(compound, currentVisit, command = 'auto') {
+function advanceVisitState(compound, currentVisit, command = 'auto') {
   if (currentVisit.outcome !== 'active' || currentVisit.pendingAction) return currentVisit
   const explicit = command !== 'auto'
   const requestedMove = explicit ? stepTarget(currentVisit.guest.position, currentVisit.guest.facing ?? 'north', command) : null
@@ -233,7 +234,6 @@ export function advanceVisit(compound, currentVisit, command = 'auto') {
     event(visit, 'step-limit', 'תקציב הצעדים הסתיים לפני הגעה ליציאה.')
     return visit
   }
-  if (requestedMove) guest.facing = requestedMove.facing
   guest.turns += 1
   const gasDamageApplied = new Set()
   const activeGasTimers = new Set(Object.entries(visit.trapStates).filter(([, state]) => state.gasTurnsRemaining > 0).map(([trapId]) => trapId))
@@ -248,6 +248,28 @@ export function advanceVisit(compound, currentVisit, command = 'auto') {
   applyGasDamage(compound, visit, guest.position, gasDamageApplied)
   if (visit.outcome !== 'active') { finishTurn(); return visit }
   for (const state of Object.values(visit.trapStates)) if (state.lockedTurnsRemaining > 0) state.lockedTurnsRemaining -= 1
+  if (explicit && visit.spectator?.blockedMovePending) {
+    visit.spectator.blockedMovePending = false
+    guest.stepsTaken += 1
+    guest.progress = visit.minimumSteps ? Math.min(99, Math.round(guest.stepsTaken / visit.minimumSteps * 100)) : 100
+    guest.status = 'מתאושש'
+    event(visit, 'spectator-block', 'Spectator Control חסם תנועה וצרך צעד.')
+    visit.stepWarnings ??= []
+    for (const threshold of [0.75, 0.9]) {
+      if (guest.stepsTaken / visit.stepBudget >= threshold && !visit.stepWarnings.includes(threshold)) {
+        visit.stepWarnings.push(threshold)
+        event(visit, 'step-warning', threshold === 0.75 ? 'נוצלו 75% מתקציב הצעדים.' : 'נוצלו 90% מתקציב הצעדים.', null, { threshold })
+      }
+    }
+    if (guest.stepsTaken >= visit.stepBudget) {
+      visit.outcome = 'stalled'
+      guest.status = 'תקציב הצעדים הסתיים'
+      event(visit, 'step-limit', 'תקציב הצעדים הסתיים לפני הגעה ליציאה.')
+    }
+    finishTurn()
+    return visit
+  }
+  if (requestedMove) guest.facing = requestedMove.facing
   if (guest.stunTurnsRemaining > 0) { guest.stunTurnsRemaining -= 1; guest.status = 'מתאושש'; event(visit, 'stun', 'האורח מתאושש ואינו מתקדם.'); finishTurn(); return visit }
   const goal = visit.stage === 'outbound' ? visit.target : visit.entrance
   const path = explicit ? [guest.position, requestedMove.position] : findPath(compound, visit, guest.position, goal)
@@ -309,7 +331,15 @@ export function advanceVisit(compound, currentVisit, command = 'auto') {
   return visit
 }
 
-export function resolvePendingTrap(compound, currentVisit, activate = true, toolId = null) {
+export function advanceVisit(compound, currentVisit, command = 'auto') {
+  const next = advanceVisitState(compound, currentVisit, command)
+  if (next !== currentVisit && next.outcome !== 'active' && next.gameplayTimer?.runningSince != null) {
+    next.gameplayTimer = { elapsedMs: elapsedGameplayMs(currentVisit), runningSince: null }
+  }
+  return next
+}
+
+function resolvePendingTrapState(compound, currentVisit, activate = true, toolId = null) {
   if (!currentVisit.pendingAction) return currentVisit
   const visit = copy(currentVisit)
   const pendingAction = visit.pendingAction
@@ -348,6 +378,14 @@ export function resolvePendingTrap(compound, currentVisit, activate = true, tool
   return visit
 }
 
+export function resolvePendingTrap(compound, currentVisit, activate = true, toolId = null) {
+  const next = resolvePendingTrapState(compound, currentVisit, activate, toolId)
+  if (next !== currentVisit && next.outcome !== 'active' && next.gameplayTimer?.runningSince != null) {
+    next.gameplayTimer = { elapsedMs: elapsedGameplayMs(currentVisit), runningSince: null }
+  }
+  return next
+}
+
 export function loadVisitResults(storage = globalThis.localStorage) {
   try { const value = JSON.parse(storage?.getItem(VISIT_RESULTS_KEY) ?? '[]'); return Array.isArray(value) ? value : [] } catch { return [] }
 }
@@ -355,7 +393,7 @@ export function loadVisitResults(storage = globalThis.localStorage) {
 export function saveVisitResult(visit, storage = globalThis.localStorage) {
   if (!['completed', 'dead', 'stalled'].includes(visit.outcome)) return loadVisitResults(storage)
   const results = loadVisitResults(storage).filter((result) => result.id !== visit.id)
-  results.unshift({ id: visit.id, startedAt: visit.startedAt, endedAt: new Date().toISOString(), outcome: visit.outcome, turns: visit.guest.turns, stepsTaken: visit.guest.stepsTaken, minimumSteps: visit.minimumSteps ?? visit.plannedSteps, stepBudget: visit.stepBudget ?? null, damageTaken: visit.guest.damageTaken, reroutes: visit.reroutes, score: calculateVisitScore(visit), compoundVersion: visit.compoundVersion, perkSelections: copy(visit.perks?.selections ?? { owner: [], guest: [] }), perkEvents: copy(visit.perks?.events ?? []) })
+  results.unshift({ id: visit.id, startedAt: visit.startedAt, endedAt: new Date().toISOString(), elapsedGameplayMs: elapsedGameplayMs(visit), outcome: visit.outcome, turns: visit.guest.turns, stepsTaken: visit.guest.stepsTaken, minimumSteps: visit.minimumSteps ?? visit.plannedSteps, stepBudget: visit.stepBudget ?? null, damageTaken: visit.guest.damageTaken, reroutes: visit.reroutes, score: calculateVisitScore(visit), compoundVersion: visit.compoundVersion, perkSelections: copy(visit.perks?.selections ?? { owner: [], guest: [] }), perkEvents: copy(visit.perks?.events ?? []) })
   const bounded = results.slice(0, 50)
   try { storage?.setItem(VISIT_RESULTS_KEY, JSON.stringify(bounded)) } catch { /* Results remain available to the caller when storage is unavailable. */ }
   return bounded
@@ -365,7 +403,7 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
   try {
     const record = JSON.parse(storage?.getItem(ACTIVE_VISIT_KEY) ?? 'null')
     if (record?.version !== 1 || record.visit?.outcome !== 'active' || !record.compound || record.compound.version !== 3) return null
-    const session = record.visit
+    let session = record.visit
     if ((session.visitType && !['regular', 'player-house'].includes(session.visitType)) || session.mapSource === 'challenge-catalog') return null
     const computedMinimum = minimumVisitSteps(record.compound).steps
     session.minimumSteps ??= session.plannedSteps ?? computedMinimum
@@ -373,13 +411,16 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
     session.stepBudget ??= Math.max(calculateStepBudget(record.compound), (session.guest?.stepsTaken ?? 0) + Math.max(1, Math.ceil((session.minimumSteps || 1) * 0.5)))
     session.stepWarnings ??= []
     session.guest.facing ??= 'north'
-    session.ownerMode = session.ownerMode === 'human' ? 'human' : 'absent'
+    session.ownerMode = session.ownerMode === 'human' && session.visitType !== 'player-house' ? 'human' : 'absent'
     session.visitType = session.visitType === 'player-house' ? 'player-house' : 'regular'
     session.mapSource ??= 'legacy-local-compound'
     session.houseId ??= null
     delete session.guardian
     session.equipment ??= { selectedToolIds: [], tools: {} }
     session.spectator ??= { energy: HOST_PERK_CONFIG.energyPerVisit, maxEnergy: HOST_PERK_CONFIG.energyPerVisit, cooldowns: {} }
+    session.spectator.blockedMovePending ??= false
+    session.gameplayTimer ??= { elapsedMs: 0, runningSince: null }
+    session = resumeGameplayTimer(session)
     session.perks ??= createVisitPerkState(session.id)
     session.perks.effectLedger ??= []
     delete session.perks.ownerActor
@@ -390,7 +431,7 @@ export function loadActiveVisit(storage = globalThis.localStorage) {
 export function saveActiveVisit(compound, visit, storage = globalThis.localStorage) {
   if (!compound || !visit || visit.outcome !== 'active' || visit.mapSource === 'challenge-catalog' || (visit.visitType && !['regular', 'player-house'].includes(visit.visitType))) return false
   try {
-    storage?.setItem(ACTIVE_VISIT_KEY, JSON.stringify({ version: 1, compound: copy(compound), visit: copy(visit), savedAt: new Date().toISOString() }))
+    storage?.setItem(ACTIVE_VISIT_KEY, JSON.stringify({ version: 1, compound: copy(compound), visit: serializeVisitWithPausedTimer(visit), savedAt: new Date().toISOString() }))
     return Boolean(storage)
   } catch { return false }
 }
