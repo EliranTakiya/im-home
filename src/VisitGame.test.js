@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 
 const source = await readFile(new URL('./VisitGame.jsx', import.meta.url), 'utf8')
 const styles = await readFile(new URL('./VisitGame.css', import.meta.url), 'utf8')
+const shellStyles = await readFile(new URL('./VisitGameShell.css', import.meta.url), 'utf8')
 const builderSource = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
 const builderStyles = await readFile(new URL('./Builder.css', import.meta.url), 'utf8')
 
@@ -61,6 +62,17 @@ test('the game HUD keeps core status and turn controls beside the map', () => {
   assert.match(styles, /\.visit-hud\{display:grid/)
   assert.match(styles, /\.visit-hud-equipment-popover\{position:fixed/)
   assert.match(styles, /env\(safe-area-inset-bottom\)/)
+})
+
+test('visit inspectors float over a single-column workspace without overriding the map or tile artwork', () => {
+  assert.match(source, /<WorkspaceFrame className="visit-workspace">/)
+  assert.match(source, /<FloatingInspector title="תיק הציוד"/)
+  assert.match(source, /<FloatingInspector title="נתוני ביקור ויכולות"/)
+  assert.match(source, /<MessageLayer messages=\{perkNotice/)
+  assert.match(shellStyles, /\.visit-layout\{grid-template-columns:minmax\(0,1fr\)/)
+  assert.match(shellStyles, /\.visit-details-inspector,\.visit-equipment-inspector\{position:fixed/)
+  assert.match(shellStyles, /@media\(max-width:760px\) and \(orientation:landscape\)/)
+  assert.doesNotMatch(shellStyles, /\.visit-map\s*\{|\.visit-tile(?:\.[\w-]+)?\s*\{/)
 })
 
 test('the visit visual layer follows saved guest position and facing without changing movement state', () => {

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import Builder from './Builder.jsx'
 import VisitGame from './VisitGame.jsx'
 import PerkSelection from './PerkSelection.jsx'
@@ -7,6 +7,8 @@ import VisitSelection from './VisitSelection.jsx'
 import ChallengeDifficulty from './ChallengeDifficulty.jsx'
 import HostPerkBriefing from './HostPerkBriefing.jsx'
 import ChallengeSummary from './ChallengeSummary.jsx'
+import { GameShell } from './GameShell.jsx'
+import OfficialLoadingScreen from './OfficialLoadingScreen.jsx'
 import { createVisitEquipment, loadEquipmentStore } from './equipment.js'
 import { createVisit, loadActiveVisit, saveActiveVisit } from './visitEngine.js'
 import { createChallengeVisit } from './challengeVisit.js'
@@ -15,6 +17,7 @@ import { clearActiveChallenge, loadActiveChallenge, loadChallengeProgress, recor
 import { selectChallengeVisitTarget } from './visitSelection.js'
 import { loadPerkStore, savePerkStore, syncGuestChallengePerkRewards } from './perks.js'
 import './App.css'
+import './CommandCenter.css'
 import './VisitNavigation.css'
 
 function HomeMark() {
@@ -27,40 +30,8 @@ function HomeMark() {
   )
 }
 
-function HouseScene() {
-  return (
-    <div className="scene" aria-label="בית מואר בלילה, מוקף חומות ומלכודות" role="img">
-      <div className="scene-orbit orbit-one" />
-      <div className="scene-orbit orbit-two" />
-      <div className="moon" />
-      <div className="scene-stars" />
-      <div className="hill hill-back" />
-      <div className="hill hill-front" />
-      <div className="pathway" />
-      <div className="fortress">
-        <div className="fort-wall wall-left" />
-        <div className="fort-wall wall-right" />
-        <div className="house-roof" />
-        <div className="house-body">
-          <span className="window window-left" />
-          <span className="window window-right" />
-          <span className="door" />
-        </div>
-        <div className="chimney" />
-        <div className="fort-base" />
-      </div>
-      <div className="tower tower-left"><i /></div>
-      <div className="tower tower-right"><i /></div>
-      <div className="trap trap-left"><i /></div>
-      <div className="trap trap-right"><i /></div>
-      <div className="scene-label"><span className="live-dot" /> המתחם שלך · אזור בטוח</div>
-      <div className="scene-coordinate">34° 46′ N &nbsp; 32° 04′ E</div>
-    </div>
-  )
-}
-
 function App() {
-  const [screen, setScreen] = useState('home')
+  const [screen, setScreen] = useState('loading')
   const [visit, setVisit] = useState(() => loadActiveVisit())
   const [visitDraft, setVisitDraft] = useState(null)
   const [visitSaveError, setVisitSaveError] = useState('')
@@ -222,7 +193,8 @@ function App() {
     </div>}
     {screen === 'perks' && visitDraft && <PerkSelection key={visitDraft.id} visitId={visitDraft.id} onStart={continueToEquipment} onCancel={cancelVisitDraft} />}
     {screen === 'equipment' && visitDraft && <EquipmentSelection onStart={startVisitWithEquipment} onCancel={() => setScreen('perks')} startError={visitSaveError} />}
-    <main className="game-shell" dir="rtl" style={{ display: screen === 'home' ? 'block' : 'none' }}>
+    {screen === 'loading' && <OfficialLoadingScreen onReady={() => setScreen('home')} />}
+    <GameShell className="command-center-shell"><main className="game-shell command-center" dir="rtl" style={{ display: screen === 'home' ? 'block' : 'none' }}>
       <header className="topbar">
         <a className="brand" href="#home" aria-label="I’m Home — מסך הבית">
           <span className="brand-mark"><HomeMark /></span>
@@ -256,8 +228,11 @@ function App() {
           <div className="hero-footnote"><span className="footnote-line" /> המשחק נמצא בפיתוח <span className="footnote-separator">·</span> הבית הראשון נבנה עכשיו</div>
         </div>
 
-        <div className="hero-art"><HouseScene /><div className="art-glow" /></div>
-        <div className="side-index"><span>01</span><i /> 03</div>
+        <aside className="command-overview" aria-label="לוח מצב המשחק">
+          <div className="command-overview-head"><span className="command-live-mark" /><div><small>GAME COMMAND CENTER</small><b>מרכז הפיקוד שלך</b></div><span className="command-index">01 / 03</span></div>
+          <div className="command-status-grid"><article><small>הבית שלי</small><b><i /> מוכן לעריכה</b><span>בנייה ושמירת המתחם</span></article><article><small>AI Challenge</small><b>3 בתי אתגר</b><span>התקדמות, ניסיונות והישגים</span></article><article><small>Player Houses</small><b>בקרוב</b><span>ביקור בבתים של שחקנים</span></article></div>
+          <div className="command-overview-foot"><span>הצעד הבא</span><b>בחרו יעד והתחילו לשחק</b><span aria-hidden="true">↙</span></div>
+        </aside>
       </section>
 
       <section className="feature-strip" id="world" aria-label="מה מחכה לכם">
@@ -269,7 +244,7 @@ function App() {
 
       <footer className="footer" id="about"><span>© 2026 I’M HOME</span><span>אין כמו בבית. עד שמישהו מנסה להיכנס.</span><span className="version">גרסת פיתוח <i /> 0.1</span></footer>
 
-    </main>
+    </main></GameShell>
     </>
   )
 }

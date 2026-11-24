@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { MAP_COLS, MAP_ROWS, ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
 import { analyzeCompoundPaths } from './navigation.js'
+import { ActionFooter, FloatingInspector, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
 import './Builder.css'
+import './BuilderWorkspace.css'
 
 function MapLegend() {
   return <div className="map-legend" aria-label="מקרא"><span><i className="legend-room" /> חדר</span><span><i className="legend-corridor" /> מסדרון</span><span><i className="legend-wall" /> קיר</span><span><i className="legend-trap" /> מלכודת</span></div>
@@ -40,11 +42,11 @@ function CompoundMap({ items, passages, tool, moveId, onCellClick, onItemClick }
   </div>
 }
 
-function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage, saveDisabled }) {
+function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage, saveDisabled, floating = false }) {
   const selectedDefinition = TRAP_TYPES[selectedTrapType]
   const selectedTrapDefinition = selectedItem?.type === 'trap' ? TRAP_TYPES[selectedItem.trapType] : null
 
-  return <aside className="builder-toolbar">
+  return <aside className={`builder-toolbar ${floating ? 'builder-toolbar-floating' : ''}`}>
     <div className="toolbar-heading"><span className="toolbar-kicker">ערכת בנייה</span><h2>מה נבנה?</h2></div>
     <button className={`build-option ${tool === 'room' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'room' ? null : 'room'); setMoveId(null) }}>
       <span className="option-icon room-option-icon">⌂</span><span className="option-copy"><b>חדר חדש</b><small>חדר קטן · 2×2 משבצות</small></span><strong>{ROOM_COST}<small> מטבעות</small></strong>
@@ -114,12 +116,6 @@ export default function Builder({ onHome }) {
   const spent = spentBudget(items)
   const budget = calculateBuildBudget(items, passages)
   const remaining = budget - spent
-
-  useEffect(() => {
-    if (!notice) return undefined
-    const timeout = window.setTimeout(() => setNotice(''), 2600)
-    return () => window.clearTimeout(timeout)
-  }, [notice])
 
   function handleCellClick(x, y) {
     if (moveId && moveId !== 'choose') {
@@ -207,19 +203,35 @@ export default function Builder({ onHome }) {
     window.setTimeout(() => setSavedMessage(false), 2200)
   }
 
+  function closeInspector() {
+    setSelectedId(null)
+    setMoveId(null)
+  }
+
+  const toolbar = <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} saveDisabled={!routeAnalysis.reachable} floating={Boolean(selectedItem)} />
+  const inspector = selectedItem && <FloatingInspector
+    title={selectedItem.type === 'trap' ? selectedItem.name : selectedItem.label}
+    eyebrow={selectedItem.type === 'trap' ? 'הגדרות מלכודת' : 'פרטי חדר'}
+    onClose={closeInspector}
+    className="builder-item-inspector"
+    footer={<ActionFooter className="builder-inspector-actions"><button type="button" className="builder-inspector-close" onClick={closeInspector}>סגירה</button><button type="button" className="remove-option builder-inspector-delete" onClick={removeSelected}>מחיקת פריט</button><button type="button" className="save-button builder-inspector-save" onClick={saveCompound} disabled={!routeAnalysis.reachable}>{savedMessage ? 'נשמר' : 'שמירת המתחם'}</button></ActionFooter>}
+  >{toolbar}</FloatingInspector>
+
   return <main className="builder-screen" dir="rtl">
     <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></header>
     <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><div className="budget-card"><span>תקציב בנייה · דינמי</span><b>{remaining}<small> / {budget}</small></b><div className="budget-track"><i style={{ width: `${Math.max(0, remaining / budget * 100)}%` }} /></div><small className="budget-note">{spent} מטבעות נוצלו · התקציב גדל עם השטח הפעיל</small></div></section>
-    <section className="builder-layout">
-      <div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
-        <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-        <CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} />
-        <div className="map-panel-foot"><MapLegend /><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
-        <RouteAnalysis analysis={routeAnalysis} />
-      </div>
-      <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} saveDisabled={!routeAnalysis.reachable} />
-    </section>
+    <WorkspaceFrame className="builder-workspace" inspector={inspector}>
+      <section className="builder-layout">
+        <div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
+          <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
+          <CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} />
+          <div className="map-panel-foot"><MapLegend /><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
+          <RouteAnalysis analysis={routeAnalysis} />
+        </div>
+        {!selectedItem && toolbar}
+      </section>
+    </WorkspaceFrame>
     <div className="builder-footer"><span>המפה נשמרת מקומית בדפדפן</span><span>לכל הגנה יש דרך להתמודד איתה <i /></span><span>אב טיפוס 0.2</span></div>
-    {notice && <div className="builder-notice" role="status">{notice}</div>}
+    <MessageLayer messages={notice ? [{ id: 'builder-notice', text: notice, type: 'status' }] : []} className="builder-message-layer">{notice && <button type="button" className="builder-message-dismiss" onClick={() => setNotice('')} aria-label="סגירת הודעה">×</button>}</MessageLayer>
   </main>
 }

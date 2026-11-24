@@ -3,8 +3,10 @@ import { CHALLENGE_HOUSES } from './challenges/houses.js'
 import { challengeAchievementStats, challengeHouseStats, isChallengeHouseUnlocked } from './challenges/progress.js'
 import { EQUIPMENT_CATALOG } from './equipment.js'
 import { PERK_CATALOG } from './perks.js'
+import { GameShell } from './GameShell.jsx'
 import './VisitSelection.css'
 import './VisitHistory.css'
+import './PreparationUI.css'
 
 const MEDALS = { gold: 'זהב', silver: 'כסף', bronze: 'ארד' }
 const DIFFICULTIES = { easy: 'Easy', normal: 'Normal', hard: 'Hard' }
@@ -59,7 +61,7 @@ export default function VisitSelection({ mode = 'visit', progress, activeChallen
   const unlocked = CHALLENGE_HOUSES.filter((house) => isChallengeHouseUnlocked(progress, house.id))
   const locked = CHALLENGE_HOUSES.filter((house) => !isChallengeHouseUnlocked(progress, house.id))
   const hasActive = activeChallenge?.visit?.outcome === 'active'
-  return <main className="visit-selection" dir="rtl">
+  return <GameShell className="preparation-game-shell visit-selection-game"><main className="visit-selection" dir="rtl">
     <header className="visit-selection-header">
       <button onClick={onBack}>חזרה לבית</button>
       <div><span>{challengeMode ? 'מסלול יחיד · התקדמות נפרדת' : 'יעד לביקור רגיל'}</span><h1>{challengeMode ? 'AI Challenge' : 'Start a Visit'}</h1></div>
@@ -79,5 +81,5 @@ export default function VisitSelection({ mode = 'visit', progress, activeChallen
       {locked.length ? <div className="selection-house-grid">{locked.map((house) => <HouseCard key={house.id} house={house} progress={progress} unlocked={false} disabled={hasActive} onSelect={onChallenge} />)}</div> : <p className="selection-all-open">כל בתי האתגר פתוחים.</p>}
     </section>
     </>}
-  </main>
+  </main></GameShell>
 }

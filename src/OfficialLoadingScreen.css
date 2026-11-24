@@ -1,0 +1,15 @@
+.official-loading-screen{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;overflow:hidden;background:#080907;color:#f4e7ce;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.official-loading-ambient,.official-loading-artwork{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.official-loading-ambient{object-fit:cover;filter:blur(24px) brightness(.35);transform:scale(1.08)}
+.official-loading-artwork{object-fit:contain}
+.official-loading-screen::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 48%,#07080718 0%,#07080712 26%,#07080720 54%,#0708074d 100%);pointer-events:none}
+.official-loading-brand,.official-loading-progress{position:absolute;z-index:1;left:50%;display:flex;align-items:center;transform:translateX(-50%);color:#f2cf89;text-align:center}
+.official-loading-brand{top:clamp(10%,20dvh,27%);flex-direction:column;gap:clamp(3px,1.2vh,12px);filter:drop-shadow(0 3px 12px #000e)}
+.official-loading-house{width:clamp(28px,4.4vw,54px);height:auto;color:#edc77c;filter:drop-shadow(0 0 10px #d59c4b77)}
+.official-loading-brand strong{font-family:Georgia,'Times New Roman',serif;font-size:clamp(2.5rem,8.4vw,7.5rem);font-weight:700;letter-spacing:.055em;line-height:.98;white-space:nowrap;background:linear-gradient(180deg,#fff0bd 3%,#e8be72 38%,#a86625 64%,#ffe4a0 88%,#bf8039);background-clip:text;-webkit-background-clip:text;color:transparent;-webkit-text-stroke:.45px #f7d996;text-shadow:0 2px 0 #673e18,0 5px 19px #000c,0 0 24px #d39a4655}
+.official-loading-progress{top:clamp(72%,78dvh,83%);flex-direction:column;gap:clamp(8px,1.7vh,16px);min-width:130px;font-family:Georgia,'Times New Roman',serif;font-size:clamp(1.05rem,2.1vw,1.65rem);text-shadow:0 2px 9px #000}
+.official-loading-spinner{width:clamp(38px,5.8vh,58px);aspect-ratio:1;border:3px solid #e6b45c36;border-top-color:#f2c66e;border-right-color:#d49a45;border-radius:50%;box-shadow:0 0 17px #d49a4544;animation:official-loading-spin 1.35s linear infinite}
+@keyframes official-loading-spin{to{transform:rotate(360deg)}}
+@media(max-width:700px){.official-loading-brand strong{font-size:clamp(2.5rem,11vw,5.2rem)}.official-loading-artwork{object-position:center}.official-loading-ambient{filter:blur(18px) brightness(.3)}}
+@media(max-height:520px) and (orientation:landscape){.official-loading-house{width:clamp(22px,6vh,38px)}.official-loading-brand{top:17%;gap:3px}.official-loading-brand strong{font-size:clamp(2rem,8vh,4.25rem)}.official-loading-progress{top:79%;gap:5px;font-size:clamp(.9rem,3vh,1.2rem)}.official-loading-spinner{width:clamp(25px,7vh,38px);border-width:2px}}
+@media(prefers-reduced-motion:reduce){.official-loading-spinner{animation-duration:4s}}

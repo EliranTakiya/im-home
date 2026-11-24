@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import { EQUIPMENT_CATALOG, loadEquipmentStore, saveEquipmentStore, selectTools, validateToolSelection } from './equipment.js'
+import { ActionFooter, GameShell, MessageLayer } from './GameShell.jsx'
 import './EquipmentSelection.css'
+import './PreparationUI.css'
 
 export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'שלב שני', continueLabel = 'שמירת התיק וכניסה לבית', startError = '' }) {
   const [store, setStore] = useState(() => loadEquipmentStore())
   const [selected, setSelected] = useState(store.selectedToolIds)
   const [notice, setNotice] = useState('')
   const tools = useMemo(() => Object.values(EQUIPMENT_CATALOG), [])
+  const equipmentFamilyNames = { electric: 'חשמל', gas: 'גז', floor: 'רצפה נופלת', door: 'דלתות' }
   const usedSpace = validateToolSelection(store, selected).usedSpace ?? 0
   function effectLabel(tool, level) {
     if (tool.impact.kind === 'reduce-next-damage') return `הפחתת ${tool.impact.amount + level * 5} נזק בהפעלה אחת`
@@ -30,9 +33,10 @@ export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'ש�
     onStart(selected)
   }
 
-  return <main className="equipment-selection" dir="rtl">
+  return <GameShell className="preparation-game-shell equipment-game-shell"><main className="equipment-selection" dir="rtl">
     <header><button onClick={onCancel}>← חזרה</button><div><span>הכנות לביקור · {stepLabel}</span><h1>תיק הכלים של האורח</h1></div><b>{usedSpace} / {store.backpackCapacity} מקום</b></header>
     <p className="equipment-intro">בחרו ציוד לפני הכניסה. הכלים והשימושים שלהם יישמרו בתוך הביקור, וניתן יהיה להפעיל אותם ידנית במפגש מתאים.</p>
+    <div className="equipment-families" aria-label="ארבע משפחות הציוד">{tools.map((tool) => <span key={tool.id}><i>{({ electric: '⚡', gas: '◉', floor: '▱', door: '▣' })[tool.compatibleTrapTypes[0]]}</i>{equipmentFamilyNames[tool.compatibleTrapTypes[0]]}</span>)}</div>
     <section className="equipment-grid">{tools.map((tool) => {
       const chosen = selected.includes(tool.id)
       const level = store.upgrades[tool.id] ?? tool.upgradeLevel
@@ -43,8 +47,7 @@ export default function EquipmentSelection({ onStart, onCancel, stepLabel = 'ש�
         <button onClick={() => toggle(tool.id)}>{chosen ? 'הסרה מהתיק' : 'הוספה לתיק'}</button>
       </article>
     })}</section>
-    {notice && <p className="equipment-notice" role="status">{notice}</p>}
-    {startError && <p className="equipment-notice" role="alert">{startError}</p>}
-    <footer><span>המלכודות יופעלו לפי חוקי הביקור הקיימים; הכלי אינו מנטרל אותן אוטומטית.</span><button onClick={start}>{continueLabel} ←</button></footer>
-  </main>
+    <MessageLayer messages={[...(notice ? [{ id: 'equipment-notice', text: notice, type: 'status' }] : []), ...(startError ? [{ id: 'equipment-error', text: startError, type: 'error' }] : [])]} className="preparation-inline-message" />
+    <ActionFooter className="equipment-selection-footer"><span>המלכודות יופעלו לפי חוקי הביקור הקיימים; הכלי אינו מנטרל אותן אוטומטית.</span><button onClick={start}>{continueLabel} ←</button></ActionFooter>
+  </main></GameShell>
 }

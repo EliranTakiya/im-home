@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { listPerksForRole, loadPerkStore, savePerkStore, saveVisitPerkSelection, validatePerkSelection } from './perks.js'
 import { DEVELOPMENT_MODE } from './gameConfig.js'
+import { ActionFooter, GameShell, MessageLayer } from './GameShell.jsx'
 import './PerkSelection.css'
+import './PreparationUI.css'
 
 const PROFILE_IDS = { owner: 'local-owner', guest: 'local-guest' }
 const MAX_SELECTED = 2
@@ -44,7 +46,7 @@ export default function PerkSelection({ visitId, onStart, onCancel, challengeMod
 
   const profile = store.profiles[`${role}:${PROFILE_IDS[role]}`]
 
-  return <main className="perk-selection-shell" dir="rtl">
+  return <GameShell className="preparation-game-shell perks-game-shell"><main className="perk-selection-shell" dir="rtl">
     <header className="perk-selection-header"><button className="perk-back" onClick={onCancel}>← חזרה</button><div><span>{challengeMode ? `בית אתגר · ${stepLabel}` : 'הכנות לביקור · בחירה נפרדת לכל צד'}</span><h1>בחרו Perks</h1></div><span className="perk-cap">מכסה: עד {MAX_SELECTED} יכולות לכל צד</span></header>
     {DEVELOPMENT_MODE && <div className="perk-development-banner" role="status">Development Mode – יכולות Host פתוחות לבדיקות; פתיחת Guest Perks עדיין תלויה בהתקדמות.</div>}
     <section className="perk-selection-layout">
@@ -59,14 +61,14 @@ export default function PerkSelection({ visitId, onStart, onCancel, challengeMod
           const selected = currentSelection.includes(perk.id)
           return <article key={perk.id} className={`perk-card ${selected ? 'perk-card-selected' : ''} ${!available ? 'perk-card-locked' : ''}`}>
             <div className="perk-card-icon">{perk.effect === 'reveal-hidden-traps' ? '⌖' : '✦'}</div>
-            <div className="perk-card-copy"><div className="perk-card-meta"><span>{perk.category === 'defense' ? 'הגנתי' : 'התקפי'}</span><span>{DEVELOPMENT_MODE ? 'פתוחה לבדיקות' : available ? inventory.limitKind === 'permanent' ? 'זמינה תמיד' : `נותרו ${inventory.remainingUses} שימושים` : 'נעולה'}</span></div><h3>{perk.name}</h3><p>{perk.description}</p><small>{perk.unlockDescription ?? perk.unlockRequirement}</small></div>
+            <div className="perk-card-copy"><div className="perk-card-meta"><span>{perk.category === 'defense' ? 'הגנתי' : 'התקפי'}</span><span>{DEVELOPMENT_MODE ? 'פתוחה לבדיקות' : available ? inventory.limitKind === 'permanent' ? 'זמינה תמיד' : `נותרו ${inventory.remainingUses} שימושים` : 'נעולה'}</span><span>עד {perk.maxActivationsPerVisit ?? 1} שימושים לביקור</span></div><h3>{perk.name}</h3><p>{perk.description}</p><small>{perk.unlockDescription ?? perk.unlockRequirement}</small></div>
             <button type="button" disabled={!available || perk.status !== 'implemented'} onClick={() => toggle(perk.id)}>{selected ? 'נבחרה' : available ? 'בחרו' : 'נעולה'}</button>
           </article>
         })}</div> : <div className="perk-empty"><span>✧</span><h3>עוד אין Perks זמינים לתפקיד הזה</h3><p>מלאי האורח נפרד ממלאי בעל המתחם. היכולות יוצגו כאן לאחר הגדרתן ומימושן.</p></div>}
-        {notice && <p className="perk-notice" role="status">{notice}</p>}
-        <div className="perk-selection-actions">{!challengeMode && role === 'owner' ? <button className="perk-next" onClick={continueToGuest}>המשך לבחירת האורח <b>←</b></button> : <button className="perk-next" onClick={startVisit}>{continueLabel ?? (challengeMode ? 'שמרו Guest Perks והמשיכו לציוד' : 'שמור בחירה והתחל ביקור')} <b>←</b></button>}</div>
+        <MessageLayer messages={notice ? [{ id: 'perk-notice', text: notice, type: 'status' }] : []} className="preparation-inline-message" />
+        <ActionFooter className="perk-selection-actions">{!challengeMode && role === 'owner' ? <button className="perk-next" onClick={continueToGuest}>המשך לבחירת האורח <b>←</b></button> : <button className="perk-next" onClick={startVisit}>{continueLabel ?? (challengeMode ? 'שמרו Guest Perks והמשיכו לציוד' : 'שמור בחירה והתחל ביקור')} <b>←</b></button>}</ActionFooter>
       </section>
     </section>
     <p className="perk-selection-footnote">הבחירה נשמרת בנפרד מהמתחם. שימוש ביכולת מוגבלת נרשם לפני הפעלתה כדי למנוע שימוש חוזר ברענון.</p>
-  </main>
+  </main></GameShell>
 }

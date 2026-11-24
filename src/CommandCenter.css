@@ -1,0 +1,53 @@
+.command-center-shell{min-height:100vh;background:#090a09;color:#f1eee6}
+.command-center-shell .game-shell{min-height:100vh;overflow:hidden;background:radial-gradient(ellipse at 18% 22%,#88652b16,transparent 35%),linear-gradient(135deg,#0e100f,#090a09 62%,#11100d)}
+.command-center-shell .topbar,.command-center-shell .hero-section,.command-center-shell .feature-strip,.command-center-shell .footer{width:min(1440px,calc(100% - 80px))}
+.command-center-shell .topbar{height:82px;border-color:#ffffff18}
+.command-center-shell .brand-mark{border-color:#ba90534d;color:#d5aa69}
+.command-center-shell .brand-name{color:#f4efe5}
+.command-center-shell .top-nav{gap:clamp(18px,3vw,42px)}
+.command-center-shell .top-nav a{font-size:12px}
+.command-center-shell .top-nav .nav-active::after{bottom:-31px;background:#d5aa69}
+.command-center-shell .top-status{color:#98968e}
+.command-center-shell .hero-section{min-height:clamp(570px,calc(100svh - 190px),760px);grid-template-columns:minmax(0,1fr) minmax(360px,.78fr);gap:clamp(48px,9vw,150px);padding-block:52px 64px}
+.command-center-shell .hero-copy{padding:18px 0 28px}
+.command-center-shell .eyebrow{color:#d5aa69;margin-bottom:22px}
+.command-center-shell .hero-copy h1{max-width:680px;font-size:clamp(54px,6vw,82px);line-height:1.08;letter-spacing:-.035em;color:#f3f0e9}
+.command-center-shell .hero-copy h1 em{color:#d5aa69}
+.command-center-shell .hero-description{max-width:490px;margin:20px 0 25px;color:#aaa79d;font-size:14px;line-height:1.9}
+.command-center-shell .hero-actions{max-width:660px;gap:12px;align-items:stretch}
+.command-center-shell .hero-actions .primary-button,.command-center-shell .hero-actions .secondary-button{min-height:48px;padding:0 17px;border:1px solid #d5aa6940;border-radius:5px;background:#ffffff06;color:#e9e3d8;font-size:12px;text-decoration:none;justify-content:center;transition:background .18s,border-color .18s,transform .18s}
+.command-center-shell .hero-actions .primary-button{background:linear-gradient(135deg,#d8b274,#b98b4c);border-color:#e8c78d;color:#17140f;font-weight:700}
+.command-center-shell .hero-actions .primary-button:hover{background:#e2bd7f;transform:translateY(-1px)}
+.command-center-shell .hero-actions .secondary-button:hover{background:#d5aa6915;border-color:#d5aa6985;color:#fff}
+.command-center-shell .hero-actions .visit-coming-soon{opacity:.48;cursor:not-allowed}
+.command-center-shell .hero-actions .home-visit-error{flex-basis:100%;color:#f0a995;font-size:12px}
+.command-center-shell .play-icon{color:#d5aa69}
+.command-center-shell .hero-footnote{margin-top:23px;color:#85847d;font-size:10px}
+.command-center-shell .command-overview{align-self:center;position:relative;isolation:isolate;overflow:hidden;min-height:405px;padding:27px;border:1px solid #d0a45c42;border-radius:8px;background:linear-gradient(150deg,#1a1914,#111210 58%,#17140f);box-shadow:0 28px 90px #0007}
+.command-center-shell .command-overview::before{position:absolute;z-index:-1;inset:0;content:"";opacity:.4;background:linear-gradient(135deg,transparent 48%,#ba90530c 49%,transparent 50%),radial-gradient(ellipse at 90% 10%,#d5aa691c,transparent 45%)}
+.command-center-shell .command-overview-head{display:flex;align-items:center;gap:12px;padding-bottom:23px;border-bottom:1px solid #ffffff19}
+.command-center-shell .command-live-mark{width:8px;height:8px;border-radius:50%;background:#d5aa69;box-shadow:0 0 18px #d5aa6990}
+.command-center-shell .command-overview-head div{display:grid;gap:5px;flex:1}
+.command-center-shell .command-overview-head small{color:#b99762;font:600 9px 'Space Grotesk',sans-serif;letter-spacing:.14em;direction:ltr;text-align:right}
+.command-center-shell .command-overview-head b{font-size:17px;font-weight:600;color:#f1ece1}
+.command-center-shell .command-index{align-self:flex-start;color:#716d62;font:10px 'Space Grotesk',sans-serif;direction:ltr}
+.command-center-shell .command-status-grid{display:grid;gap:0}
+.command-center-shell .command-status-grid article{display:grid;grid-template-columns:1fr auto;gap:8px 14px;padding:20px 0;border-bottom:1px solid #ffffff13}
+.command-center-shell .command-status-grid article small{grid-column:1/-1;color:#89867c;font-size:10px}
+.command-center-shell .command-status-grid article b{color:#e8e2d6;font-size:13px;font-weight:600}
+.command-center-shell .command-status-grid article span{grid-column:1/-1;color:#918e83;font-size:10px}
+.command-center-shell .command-status-grid article b i{display:inline-block;width:6px;height:6px;margin-inline-end:7px;border-radius:50%;background:#9aa87c;vertical-align:middle}
+.command-center-shell .command-overview-foot{display:flex;align-items:center;gap:10px;padding-top:20px;color:#a39b8d;font-size:10px}
+.command-center-shell .command-overview-foot b{flex:1;color:#d6b77f;font-weight:500}
+.command-center-shell .feature-strip{gap:12px;padding-block:25px 50px;border-top:1px solid #ffffff17}
+.command-center-shell .feature-intro>span{color:#c19a5f}
+.command-center-shell .feature-intro p{color:#f0ece3}
+.command-center-shell .feature-card{border-color:#ffffff19;background:#11120f}
+.command-center-shell .feature-card:hover{border-color:#b58c5370;background:#171711}
+.command-center-shell .feature-number,.command-center-shell .feature-icon,.command-center-shell .feature-arrow{color:#d0a462}
+.command-center-shell .feature-card h2{color:#e9e4d9}
+.command-center-shell .feature-card p{color:#96938a}
+.command-center-shell .footer{border-color:#ffffff17;color:#88867f}
+@media(max-width:1000px){.command-center-shell .topbar,.command-center-shell .hero-section,.command-center-shell .feature-strip,.command-center-shell .footer{width:calc(100% - 48px)}.command-center-shell .hero-section{grid-template-columns:minmax(0,1fr) minmax(300px,.8fr);gap:30px}.command-center-shell .command-overview{min-height:370px;padding:21px}.command-center-shell .hero-copy h1{font-size:clamp(48px,6vw,68px)}.command-center-shell .hero-actions{gap:9px}.command-center-shell .hero-actions .primary-button,.command-center-shell .hero-actions .secondary-button{padding-inline:12px}}
+@media(max-width:700px){.command-center-shell .topbar,.command-center-shell .hero-section,.command-center-shell .feature-strip,.command-center-shell .footer{width:calc(100% - 32px)}.command-center-shell .topbar{height:auto;min-height:70px;flex-wrap:wrap;gap:8px;padding-block:12px}.command-center-shell .brand-mark{width:34px;height:34px}.command-center-shell .top-nav{order:3;width:100%;height:35px;justify-content:center;gap:clamp(20px,8vw,42px)}.command-center-shell .top-nav .nav-active::after{bottom:-8px}.command-center-shell .top-status{font-size:9px}.command-center-shell .hero-section{min-height:unset;grid-template-columns:1fr;gap:22px;padding-block:36px 42px}.command-center-shell .hero-copy{padding:0}.command-center-shell .hero-copy h1{font-size:clamp(47px,12vw,67px)}.command-center-shell .hero-description{font-size:13px}.command-center-shell .hero-actions{display:grid;grid-template-columns:1fr 1fr}.command-center-shell .hero-actions .primary-button{grid-column:1/-1}.command-center-shell .hero-actions .secondary-button{font-size:11px}.command-center-shell .hero-footnote{margin-top:17px;line-height:1.8}.command-center-shell .command-overview{min-height:unset;padding:18px}.command-center-shell .command-status-grid article{padding:14px 0}.command-center-shell .feature-strip{grid-template-columns:1fr;gap:8px;padding-block:22px 32px}.command-center-shell .feature-card{min-height:90px}.command-center-shell .footer{flex-wrap:wrap;gap:10px;padding-block:18px;font-size:9px}}
+@media(max-height:520px) and (orientation:landscape){.command-center-shell .topbar{height:58px;min-height:58px}.command-center-shell .hero-section{min-height:unset;grid-template-columns:minmax(0,1.1fr) minmax(240px,.8fr);gap:18px;padding-block:20px 24px}.command-center-shell .hero-copy h1{font-size:clamp(34px,7vh,52px)}.command-center-shell .eyebrow{margin-bottom:10px}.command-center-shell .hero-description{margin:10px 0 13px;font-size:11px;line-height:1.6}.command-center-shell .hero-actions{gap:7px}.command-center-shell .hero-actions .primary-button,.command-center-shell .hero-actions .secondary-button{min-height:38px;padding-inline:9px;font-size:10px}.command-center-shell .hero-footnote{margin-top:10px}.command-center-shell .command-overview{min-height:unset;padding:14px}.command-center-shell .command-status-grid article{padding:10px 0}.command-center-shell .feature-strip{grid-template-columns:repeat(4,minmax(0,1fr));padding-block:16px}.command-center-shell .feature-card{padding:14px}}
