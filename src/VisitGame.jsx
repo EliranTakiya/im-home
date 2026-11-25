@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MAP_COLS, MAP_ROWS } from './compound.js'
 import { advanceVisit, calculateVisitScore, clearActiveVisit, resolvePendingTrap, saveActiveVisit, saveVisitResult } from './visitEngine.js'
 import { activatePerk, canRevealHiddenTraps, loadPerkStore, PERK_CATALOG, savePerkStore } from './perks.js'
 import { TRAP_TYPES } from './traps.js'
@@ -19,15 +18,17 @@ import './VisitGameShell.css'
 const trapColors = { electric: '⚡', floor: '⌄', gas: '◉', door: '▣' }
 
 function VisitMap({ compound, visit, decor = [], material = '', guardian = null, ownerView = false }) {
+  const columns = compound.map.width
+  const rows = compound.map.height
   const traps = useMemo(() => compound.items.filter((item) => item.type === 'trap'), [compound])
   const rooms = compound.map.rooms
   const damageCount = visit.events.filter((event) => event.type === 'damage').length
   const equipmentCount = visit.events.filter((event) => event.type === 'equipment').length
   return <div className={`visit-map-wrap ${material ? `visit-grain-${material}` : ''}`} aria-label="מפת הביקור">
-    <div className="visit-map" style={{ '--map-cols': MAP_COLS, '--map-rows': MAP_ROWS }}>
-      {Array.from({ length: MAP_ROWS * MAP_COLS }, (_, index) => {
-        const x = index % MAP_COLS
-        const y = Math.floor(index / MAP_COLS)
+    <div className="visit-map" style={{ '--map-cols': columns, '--map-rows': rows }}>
+      {Array.from({ length: rows * columns }, (_, index) => {
+        const x = index % columns
+        const y = Math.floor(index / columns)
         const room = rooms.find((item) => x >= item.x && x < item.x + item.w && y >= item.y && y < item.y + item.h)
         const passage = compound.map.passages.some((item) => x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height)
         const entrance = compound.map.entrances.some((point) => point.x === x && point.y === y)
@@ -48,13 +49,13 @@ function VisitMap({ compound, visit, decor = [], material = '', guardian = null,
         </div>
       })}
       <div className="visit-guest-layer" aria-hidden="true">
-        <span className="visit-guest" style={{ left: `${((visit.guest.position.x + 0.5) / MAP_COLS) * 100}%`, top: `${((visit.guest.position.y + 0.5) / MAP_ROWS) * 100}%`, '--facing-rotation': `${facingRotationDegrees(visit.guest.facing ?? 'north')}deg` }} aria-label={`מיקום האורח, פונה ${visit.guest.facing ?? 'north'}`}>
+        <span className="visit-guest" style={{ left: `${((visit.guest.position.x + 0.5) / columns) * 100}%`, top: `${((visit.guest.position.y + 0.5) / rows) * 100}%`, '--facing-rotation': `${facingRotationDegrees(visit.guest.facing ?? 'north')}deg` }} aria-label={`מיקום האורח, פונה ${visit.guest.facing ?? 'north'}`}>
           <i />
           {damageCount > 0 && <b key={`damage-${damageCount}`} className="visit-guest-reaction visit-guest-damage" />}
           {equipmentCount > 0 && <b key={`equipment-${equipmentCount}`} className="visit-guest-reaction visit-guest-equipment" />}
         </span>
       </div>
-      {guardian?.phase === 'present' && <span className="visit-guardian-actor" aria-label="שומר הבית נכנס למתחם" title="שומר הבית" style={{ left: `${((visit.entrance.x + 0.72) / MAP_COLS) * 100}%`, top: `${((visit.entrance.y + 0.28) / MAP_ROWS) * 100}%` }}>◆</span>}
+      {guardian?.phase === 'present' && <span className="visit-guardian-actor" aria-label="שומר הבית נכנס למתחם" title="שומר הבית" style={{ left: `${((visit.entrance.x + 0.72) / columns) * 100}%`, top: `${((visit.entrance.y + 0.28) / rows) * 100}%` }}>◆</span>}
     </div>
   </div>
 }

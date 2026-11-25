@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MAP_COLS, MAP_ROWS, ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
+import { ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
 import { analyzeCompoundPaths } from './navigation.js'
 import { BUILDER_MAP_METRICS, calculateBuilderMapGeometry } from './builderMapSizing.js'
@@ -19,21 +19,23 @@ function BuilderBudget({ budget, remaining, spent, compact = false }) {
   </div>
 }
 
-function CompoundMap({ items, passages, tool, moveId, onCellClick, onItemClick }) {
-  const cells = useMemo(() => Array.from({ length: MAP_ROWS * MAP_COLS }, (_, index) => {
-    const x = index % MAP_COLS
-    const y = Math.floor(index / MAP_COLS)
+function CompoundMap({ items, passages, map, tool, moveId, onCellClick, onItemClick }) {
+  const columns = map.width
+  const rows = map.height
+  const cells = useMemo(() => Array.from({ length: rows * columns }, (_, index) => {
+    const x = index % columns
+    const y = Math.floor(index / columns)
     const item = items.find((entry) => x >= entry.x && x < entry.x + entry.w && y >= entry.y && y < entry.y + entry.h)
-    const entrance = x === 5 && y === MAP_ROWS - 1
+    const entrance = map.entrances.some((point) => point.x === x && point.y === y)
     const corridor = !item && passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)
     const gasZone = !item && items.some((entry) => entry.type === 'trap' && entry.trapType === 'gas' && Math.max(Math.abs(x - entry.x), Math.abs(y - entry.y)) <= entry.effect.radius)
     return { x, y, item, entrance, corridor, gasZone }
-  }), [items, passages])
+  }), [items, passages, columns, rows, map.entrances])
 
-  return <div className={`map-frame ${tool ? `tool-${tool}` : ''} ${moveId ? 'move-mode' : ''}`}>
-    <div className="map-coordinates map-coordinates-top">{Array.from({ length: MAP_COLS }, (_, i) => <span key={i}>{String.fromCharCode(65 + i)}</span>)}</div>
-    <div className="map-with-rows"><div className="map-coordinates map-coordinates-side">{Array.from({ length: MAP_ROWS }, (_, i) => <span key={i}>{String(i + 1).padStart(2, '0')}</span>)}</div>
-      <div className="compound-grid" style={{ '--cols': MAP_COLS, '--rows': MAP_ROWS }}>
+  return <div className={`map-frame ${tool ? `tool-${tool}` : ''} ${moveId ? 'move-mode' : ''}`} style={{ '--cols': columns, '--rows': rows }}>
+    <div className="map-coordinates map-coordinates-top">{Array.from({ length: columns }, (_, i) => <span key={i}>{String.fromCharCode(65 + i)}</span>)}</div>
+    <div className="map-with-rows"><div className="map-coordinates map-coordinates-side">{Array.from({ length: rows }, (_, i) => <span key={i}>{String(i + 1).padStart(2, '0')}</span>)}</div>
+      <div className="compound-grid" style={{ '--cols': columns, '--rows': rows }}>
         {cells.map(({ x, y, item, entrance, corridor, gasZone }) => <button
           key={`${x}-${y}`}
           className={`map-cell ${item ? `cell-${item.type}` : ''} ${item?.type === 'trap' ? `trap-kind-${item.trapType}` : ''} ${item?.type === 'trap' && item.visibility === 'hidden' ? 'cell-trap-hidden' : ''} ${gasZone ? 'cell-gas-zone' : ''} ${corridor ? 'cell-corridor' : ''} ${entrance ? 'cell-entrance' : ''} ${moveId && item?.id === moveId ? 'cell-selected' : ''} ${!item && !corridor && !entrance && !gasZone ? 'cell-wall' : ''}`}
@@ -149,7 +151,7 @@ export default function Builder({ onHome }) {
     }
   }, [])
 
-  const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, MAP_COLS, MAP_ROWS)
+  const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, mapTemplate.width, mapTemplate.height)
   const mapFitStyle = {
     '--map-fit-width': `${mapGeometry.contentWidth}px`,
     '--map-fit-height': `${mapGeometry.contentHeight}px`,
@@ -170,7 +172,7 @@ export default function Builder({ onHome }) {
 
   function handleCellClick(x, y) {
     if (moveId && moveId !== 'choose') {
-      const result = moveItem(items, moveId, x, y)
+      const result = moveItem(items, moveId, x, y, compound.map)
       if (result.error) { setNotice(result.error === 'route' ? 'ההזזה חוסמת את הדרך לכניסה. בחרו מקום אחר.' : 'אי אפשר להעביר פריט למקום תפוס או מחוץ למפה.'); return }
       setItems(result.items)
       setSelectedId(moveId); setMoveId(null); setNotice('הפריט הוזז.')
@@ -179,7 +181,7 @@ export default function Builder({ onHome }) {
     if (tool === 'room') {
       if (remaining < ROOM_COST) { setNotice('אין מספיק תקציב לחדר נוסף.'); return }
       const newId = `room-${Date.now()}`
-      const result = placeRoom(items, x, y, newId)
+      const result = placeRoom(items, x, y, newId, compound.map)
       if (result.error) { setNotice('בחרו שטח פנוי מחוץ למסלול הכניסה.'); return }
       setItems(result.items); setSelectedId(result.item.id); setTool(null); setNotice('נוסף חדר חדש.')
       return
@@ -188,7 +190,7 @@ export default function Builder({ onHome }) {
       const mapTile = compound.map.rooms.some((room) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h) || passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)
       if (!mapTile) { setNotice('אפשר להציב מלכודת בחדר או במסדרון בלבד. בנו מעבר תחילה.'); return }
       if (remaining < TRAP_TYPES[selectedTrapType].price) { setNotice('אין מספיק תקציב למלכודת נוספת.'); return }
-      const result = placeTrap(items, x, y, `trap-${Date.now()}`, selectedTrapType)
+      const result = placeTrap(items, x, y, `trap-${Date.now()}`, selectedTrapType, compound.map)
       if (result.error) { setNotice(result.error === 'route' ? 'הצבה זו מונעת מעבר עוקף לכניסה. בחרו מקום אחר.' : 'בחרו מסדרון או שטח פנוי, והשאירו את הכניסה פתוחה.') ; return }
       setItems(result.items); setSelectedId(result.item.id); setTool(null); setNotice('נוספה מלכודת. אפשר לזהות אותה ולעקוף אותה.')
       return
@@ -204,7 +206,7 @@ export default function Builder({ onHome }) {
         return
       }
       if (compound.map.rooms.some((room) => x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h)) { setNotice('המשבצת כבר נמצאת בתוך חדר.'); return }
-      const result = placePassageTile(compound.map.passages, x, y)
+      const result = placePassageTile(compound.map.passages, x, y, compound.map)
       if (result.error) { setNotice('אי אפשר להוסיף מסדרון במשבצת הזו.'); return }
       setPassages(result.passages)
       setNotice('נוספה משבצת מסדרון. המשיכו לחבר אותה לרשת המעברים.')
@@ -275,7 +277,7 @@ export default function Builder({ onHome }) {
     <WorkspaceFrame className="builder-workspace" inspector={inspector}>
       <MapFirstLayout className={`builder-layout ${toolbarOpen && !selectedItem ? 'tools-open' : ''}`} startRail={utilityRail} endRail={toolbarOpen ? selectedItem ? <div className="builder-tool-rail-placeholder" aria-label="הגדרות הפריט נפתחו בחלונית" /> : toolbar : null} map={<div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} /></div>
+          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} /></div>
           <div className="map-panel-foot"><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
         </div>} />
     </WorkspaceFrame>

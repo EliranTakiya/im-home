@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createCompoundData, STARTER_ITEMS } from './compound.js'
+import { STARTER_ITEMS } from './compound.js'
+import { createLegacyCompoundFixture } from './legacyCompoundFixture.js'
 import { createTrapData } from './traps.js'
 import { ACTIVE_VISIT_KEY, advanceVisit, calculateVisitScore, clearActiveVisit, createVisit, findPath, loadActiveVisit, loadVisitResults, resolvePendingTrap, saveActiveVisit, saveVisitResult, VISIT_RESULTS_KEY } from './visitEngine.js'
 
@@ -8,7 +9,7 @@ function compoundWithTrap(type, patch = {}) {
   const trap = { id: 'trap-test', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData(type), ...patch }
   if (patch.effect) trap.effect = { ...trap.effect, ...patch.effect }
   if (patch.activation) trap.activation = { ...trap.activation, ...patch.activation }
-  return createCompoundData([...STARTER_ITEMS, trap])
+  return createLegacyCompoundFixture([...STARTER_ITEMS, trap])
 }
 
 function until(condition, compound, visit, limit = 100) {
@@ -18,7 +19,7 @@ function until(condition, compound, visit, limit = 100) {
 }
 
 test('visitor reaches the farthest room and returns to the entrance', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const visit = createVisit(compound, { id: 'round-trip' })
   assert.notDeepEqual(visit.target, visit.entrance)
   const result = until((state) => state.outcome !== 'active', compound, visit)
@@ -153,7 +154,7 @@ test('manual trap waits for a decision and can be skipped without activating', (
 test('visit results save separately and are deduplicated by visit id', () => {
   const records = new Map()
   const storage = { getItem: (key) => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) }
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const finished = until((state) => state.outcome !== 'active', compound, createVisit(compound, { id: 'stored-result' }))
   finished.perks.selections.owner = ['trap-map']
   finished.perks.events.push({ type: 'perk-activated', role: 'owner', perkId: 'trap-map' })
@@ -200,7 +201,7 @@ test('active visits survive reload with timers, exposure, events, and a private 
 })
 
 test('legacy active visit saves remain resumable and cannot restore a stale Guardian mode', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const legacy = createVisit(compound, { id: 'legacy-guardian-save', visitType: 'challenge', ownerMode: 'ai' })
   legacy.guardian = { phase: 'present', eventLog: [] }
   const record = { version: 1, compound, visit: legacy }
@@ -220,7 +221,7 @@ test('legacy active visit saves remain resumable and cannot restore a stale Guar
 })
 
 test('ordinary active-visit storage rejects challenge sessions and failed writes preserve the previous save', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const prior = createVisit(compound, { id: 'prior-ordinary', visitType: 'regular', mapSource: 'player-house', houseId: 'remote-old' })
   const challenge = createVisit(compound, { id: 'challenge-must-stay-separate', visitType: 'challenge', mapSource: 'challenge-catalog', houseId: 'beginner-house' })
   const values = new Map()
@@ -266,7 +267,7 @@ test('resuming a saved gas visit continues its timer and applies exactly one hit
 test('terminal visits are not persisted as active and abandonment is not a result', () => {
   const records = new Map()
   const storage = { getItem: (key) => records.get(key) ?? null, setItem: (key, value) => records.set(key, value), removeItem: (key) => records.delete(key) }
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const active = createVisit(compound, { id: 'abandoned-visit' })
   saveActiveVisit(compound, active, storage)
   clearActiveVisit(storage, active.id)
@@ -278,7 +279,7 @@ test('terminal visits are not persisted as active and abandonment is not a resul
 })
 
 test('relative directional movement respects facing and walls without charging blocked inputs', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const initial = createVisit(compound, { id: 'directional' })
   const blockedAtEdge = advanceVisit(compound, initial, 'right')
   assert.equal(blockedAtEdge, initial)
@@ -295,7 +296,7 @@ test('relative directional movement respects facing and walls without charging b
 })
 
 test('forward and backward preserve facing while left and right turn and move relative to it', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const initial = createVisit(compound, { id: 'relative-controls' })
   initial.guest.position = { x: 5, y: 4 }
 
@@ -317,7 +318,7 @@ test('forward and backward preserve facing while left and right turn and move re
 })
 
 test('step budget emits each warning once and ends the visit without resetting progress', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   let visit = createVisit(compound, { id: 'step-limit' })
   visit.stepBudget = 4
   visit = advanceVisit(compound, visit, 'forward')
@@ -333,7 +334,7 @@ test('step budget emits each warning once and ends the visit without resetting p
 })
 
 test('visit score rewards efficiency, remaining health, traps, gear, and completion without repeat awards', () => {
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const visit = createVisit(compound, { id: 'score-once' })
   visit.outcome = 'completed'
   visit.guest.health = 80

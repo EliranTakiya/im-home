@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { BUILD_BUDGET, COMPOUND_DATA_VERSION, COMPOUND_STORAGE_KEY, LEGACY_COMPOUND_STORAGE_KEY, ROOM_COST, STARTER_ITEMS, calculateBuildBudget, canReachEntrance, changeTrapType, createCompoundData, isValidLayout, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound, spentBudget, toggleTrapVisibility, updateTrapSettings } from './compound.js'
+import { BUILD_BUDGET, COMPOUND_DATA_VERSION, COMPOUND_STORAGE_KEY, LEGACY_COMPOUND_STORAGE_KEY, LEGACY_MAP_COLS, LEGACY_MAP_ROWS, MAP_COLS, MAP_ROWS, ROOM_COST, STARTER_ITEMS, calculateBuildBudget, canReachEntrance, changeTrapType, createCompoundData, isValidLayout, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound, spentBudget, toggleTrapVisibility, updateTrapSettings } from './compound.js'
 import { TRAP_TYPES, TRAP_TYPE_LIST, calculateTrapPrice } from './traps.js'
 
 test('rooms can be built in separate free locations within the map', () => {
@@ -11,6 +11,36 @@ test('rooms can be built in separate free locations within the map', () => {
   assert.equal(second.error, undefined)
   assert.equal(spentBudget(second.items), ROOM_COST * 2)
   assert.equal(canReachEntrance(second.items), true)
+})
+
+test('new builder compounds use a 16 by 10 grid with 160 cells and accept the expanded edges', () => {
+  const compound = createCompoundData(STARTER_ITEMS)
+  assert.deepEqual([compound.map.width, compound.map.height], [16, 10])
+  assert.equal(compound.map.width * compound.map.height, 160)
+  assert.equal(isValidLayout([...STARTER_ITEMS, { id: 'edge-trap', type: 'trap', x: 15, y: 8, w: 1, h: 1, trapType: 'electric' }]), true)
+  assert.equal(placePassageTile(compound.map.passages, 15, 9, compound.map).passage.x, 15)
+  assert.deepEqual([MAP_COLS, MAP_ROWS], [16, 10])
+})
+
+test('existing 12 by 8 player compounds expand on load without changing placed items', () => {
+  const legacyMap = {
+    width: LEGACY_MAP_COLS, height: LEGACY_MAP_ROWS, rooms: STARTER_ITEMS.map((item) => ({ ...item })), walls: [],
+    passages: [
+      { id: 'main-cross-passage', x: 0, y: 4, width: LEGACY_MAP_COLS, height: 1 },
+      { id: 'upper-gallery', x: 0, y: 3, width: LEGACY_MAP_COLS, height: 1 },
+      { id: 'entrance-passage', x: 5, y: 5, width: 1, height: 2 },
+    ],
+    entrances: [{ id: 'main-entrance', x: 5, y: 7 }], exits: [{ id: 'main-exit', x: 5, y: 7 }],
+  }
+  const compound = createCompoundData([...STARTER_ITEMS, { id: 'saved-trap', type: 'trap', x: 1, y: 4, w: 1, h: 1, trapType: 'electric' }], legacyMap)
+  const values = new Map([[COMPOUND_STORAGE_KEY, JSON.stringify(compound)]])
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) }
+  const loaded = loadCompound(storage)
+  assert.deepEqual([loaded.map.width, loaded.map.height], [16, 10])
+  assert.deepEqual(loaded.items.map(({ id, x, y }) => ({ id, x, y })), [{ id: 'saved-trap', x: 1, y: 4 }])
+  assert.deepEqual(loaded.map.entrances[0], { id: 'main-entrance', x: 5, y: 9 })
+  assert.equal(loaded.map.passages.find(({ id }) => id === 'main-cross-passage').width, 16)
+  assert.equal(loaded.map.passages.find(({ id }) => id === 'entrance-passage').height, 4)
 })
 
 test('rooms and traps can be moved without overlaps or closing the entrance', () => {
@@ -143,8 +173,10 @@ test('traps cannot block every bypass route or occupy the entrance', () => {
   const leftRoom = placeRoom(STARTER_ITEMS, 3, 5, 'left-side-room')
   const bothRooms = placeRoom(leftRoom.items, 6, 5, 'right-side-room')
   assert.equal(bothRooms.error, undefined)
-  assert.equal(placeTrap(bothRooms.items, 5, 6, 'blocked-trap').error, 'route')
-  assert.equal(placeTrap(STARTER_ITEMS, 5, 7, 'entrance-trap').error, 'blocked')
+  const routeTrap = placeTrap(bothRooms.items, 5, 6, 'route-trap')
+  assert.equal(routeTrap.error, undefined)
+  assert.equal(canReachEntrance(routeTrap.items), true)
+  assert.equal(placeTrap(STARTER_ITEMS, 5, MAP_ROWS - 1, 'entrance-trap').error, 'blocked')
 })
 
 test('saved layouts reload after refresh and invalid saved data is rejected', () => {
@@ -154,7 +186,7 @@ test('saved layouts reload after refresh and invalid saved data is rejected', ()
   const restored = loadSavedItems(storage)
   assert.deepEqual(restored, trap.items)
   assert.equal(isValidLayout(restored), true)
-  const invalidStorage = { getItem: () => JSON.stringify([{ id: 'trap', type: 'trap', x: 5, y: 7, w: 1, h: 1 }]) }
+  const invalidStorage = { getItem: () => JSON.stringify([{ id: 'trap', type: 'trap', x: 5, y: MAP_ROWS - 1, w: 1, h: 1 }]) }
   assert.deepEqual(loadSavedItems(invalidStorage), STARTER_ITEMS)
 })
 

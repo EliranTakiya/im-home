@@ -2,14 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-test('Builder shares one measured viewport for its coordinates and complete 12 by 8 board', async () => {
+test('Builder shares one measured viewport for its coordinates and complete 16 by 10 board', async () => {
   const component = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('./BuilderWorkspace.css', import.meta.url), 'utf8')
   const sizing = await readFile(new URL('./builderMapSizing.js', import.meta.url), 'utf8')
 
   assert.match(component, /new ResizeObserver\(measure\)/)
   assert.match(component, /window\.addEventListener\('orientationchange', measure/)
-  assert.match(component, /calculateBuilderMapGeometry\(mapViewport\.width, mapViewport\.height, MAP_COLS, MAP_ROWS\)/)
+  assert.match(component, /calculateBuilderMapGeometry\(mapViewport\.width, mapViewport\.height, mapTemplate\.width, mapTemplate\.height\)/)
   assert.match(sizing, /horizontalChrome = \(columns - 1\) \* cellGap \+ 2 \* \(gridPadding \+ gridBorder\) \+ rowAxisWidth \+ rowAxisGap \+ frameBleed/)
   assert.match(sizing, /verticalChrome = \(rows - 1\) \* cellGap \+ 2 \* \(gridPadding \+ gridBorder\) \+ columnAxisBand \+ entranceBandHeight \+ frameBleed/)
   assert.match(component, /'--map-grid-track-width': `\$\{mapGeometry\.trackWidth\}px`/)
@@ -25,8 +25,8 @@ test('Builder shares one measured viewport for its coordinates and complete 12 b
   assert.match(css, /\.map-panel-head\{min-height:14px\}/)
   assert.match(css, /\.map-instruction\{min-height:8px/)
   assert.match(css, /\.compound-grid \.trap-mark\{font-size:clamp\(13px,calc\(var\(--map-cell-size\) \* \.55\),30px\)/)
-  assert.match(css, /\.map-coordinates-top[^}]*grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/)
-  assert.match(css, /\.map-coordinates-side\{grid-template-rows:repeat\(8,minmax\(0,1fr\)\)/)
+  assert.match(css, /\.map-coordinates-top[^}]*grid-template-columns:repeat\(var\(--cols\),minmax\(0,1fr\)\)/)
+  assert.match(css, /\.map-coordinates-side\{grid-template-rows:repeat\(var\(--rows\),minmax\(0,1fr\)\)/)
   assert.match(css, /\.map-panel\{[^}]*overflow:hidden/)
   assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns/)
   assert.doesNotMatch(css, /\.builder-layout\{display:grid;grid-template-columns:minmax\(0,1fr\)/)

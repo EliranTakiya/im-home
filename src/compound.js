@@ -1,7 +1,9 @@
 import { createTrapData, DEFAULT_TRAP_TYPE, normalizeTrapData, TRAP_TYPES } from './traps.js'
 
-export const MAP_COLS = 12
-export const MAP_ROWS = 8
+export const MAP_COLS = 16
+export const MAP_ROWS = 10
+export const LEGACY_MAP_COLS = 12
+export const LEGACY_MAP_ROWS = 8
 export const BUILD_BUDGET = 1000
 export const AREA_BUDGET_BONUS = 10
 export const ROOM_COST = 240
@@ -15,19 +17,19 @@ export const STARTER_ITEMS = [
   { id: 'room-store', type: 'room', x: 7, y: 1, w: 2, h: 2, label: 'מחסן', free: true },
 ]
 
-function createBaseMap(rooms = []) {
+function createBaseMap(rooms = [], width = MAP_COLS, height = MAP_ROWS) {
   return {
-    width: MAP_COLS,
-    height: MAP_ROWS,
+    width,
+    height,
     rooms,
     passages: [
-      { id: 'main-cross-passage', x: 0, y: 4, width: MAP_COLS, height: 1 },
-      { id: 'upper-gallery', x: 0, y: 3, width: MAP_COLS, height: 1 },
-      { id: 'entrance-passage', x: 5, y: 5, width: 1, height: 2 },
+      { id: 'main-cross-passage', x: 0, y: 4, width, height: 1 },
+      { id: 'upper-gallery', x: 0, y: 3, width, height: 1 },
+      { id: 'entrance-passage', x: 5, y: 5, width: 1, height: Math.max(1, height - 6) },
     ],
     walls: [],
-    entrances: [{ id: 'main-entrance', x: 5, y: MAP_ROWS - 1 }],
-    exits: [{ id: 'main-exit', x: 5, y: MAP_ROWS - 1 }],
+    entrances: [{ id: 'main-entrance', x: 5, y: height - 1 }],
+    exits: [{ id: 'main-exit', x: 5, y: height - 1 }],
   }
 }
 
@@ -56,19 +58,24 @@ export function overlaps(item, x, y, w = item.w, h = item.h) {
   return x < item.x + item.w && x + w > item.x && y < item.y + item.h && y + h > item.y
 }
 
-export function canReachEntrance(items) {
+function mapDimensions(map) { return { width: map?.width ?? MAP_COLS, height: map?.height ?? MAP_ROWS } }
+
+export function canReachEntrance(items, map = null) {
+  const { width, height } = mapDimensions(map)
+  const entrancePoint = map?.entrances?.[0] ?? map?.exits?.[0] ?? { x: 5, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
   const blocked = (x, y) => items.some((item) => x >= item.x && x < item.x + item.w && y >= item.y && y < item.y + item.h)
-  const entrance = { x: 5, y: MAP_ROWS - 1 }
+  const entrance = entrancePoint
   if (blocked(entrance.x, entrance.y)) return false
 
-  const queue = Array.from({ length: MAP_COLS }, (_, x) => ({ x, y: 4 })).filter(({ x, y }) => !blocked(x, y))
+  const queue = Array.from({ length: width }, (_, x) => ({ x, y: crossY })).filter(({ x, y }) => !blocked(x, y))
   const visited = new Set(queue.map(({ x, y }) => `${x}:${y}`))
   for (let index = 0; index < queue.length; index += 1) {
     const { x, y } = queue[index]
     if (x === entrance.x && y === entrance.y) return true
     for (const [nextX, nextY] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
       const key = `${nextX}:${nextY}`
-      if (nextX < 0 || nextX >= MAP_COLS || nextY < 0 || nextY >= MAP_ROWS || (nextY === MAP_ROWS - 1 && nextX !== entrance.x) || visited.has(key) || blocked(nextX, nextY)) continue
+      if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height || (nextY === height - 1 && nextX !== entrance.x) || visited.has(key) || blocked(nextX, nextY)) continue
       visited.add(key)
       queue.push({ x: nextX, y: nextY })
     }
@@ -76,7 +83,8 @@ export function canReachEntrance(items) {
   return false
 }
 
-export function isValidLayout(items) {
+export function isValidLayout(items, map = null) {
+  const { width, height } = mapDimensions(map)
   if (!Array.isArray(items) || !items.every((item) => {
     if (!item || typeof item.id !== 'string' || !['room', 'trap'].includes(item.type)) return false
     if (![item.x, item.y, item.w, item.h].every(Number.isInteger) || item.x < 0 || item.y < 0) return false
@@ -84,38 +92,61 @@ export function isValidLayout(items) {
     if (item.type === 'trap' && item.visibility !== undefined && !['visible', 'hidden'].includes(item.visibility)) return false
     if (item.type === 'trap' && item.trapType !== undefined && !TRAP_TYPES[item.trapType]) return false
     if (item.type === 'trap' && item.price !== undefined && (!Number.isFinite(item.price) || item.price < 0)) return false
-    return item.w > 0 && item.h > 0 && item.x + item.w <= MAP_COLS && item.y + item.h <= MAP_ROWS
+    return item.w > 0 && item.h > 0 && item.x + item.w <= width && item.y + item.h <= height
   })) return false
   for (let index = 0; index < items.length; index += 1) {
     if (items.slice(index + 1).some((item) => overlaps(items[index], item.x, item.y, item.w, item.h))) return false
   }
-  return canReachEntrance(items)
+  return canReachEntrance(items, map)
 }
 
 function isValidMap(map) {
-  if (!map || map.width !== MAP_COLS || map.height !== MAP_ROWS) return false
+  if (!map || !Number.isInteger(map.width) || !Number.isInteger(map.height) || map.width < LEGACY_MAP_COLS || map.height < LEGACY_MAP_ROWS) return false
+  const { width, height } = map
   if (!Array.isArray(map.rooms) || !Array.isArray(map.passages) || !Array.isArray(map.entrances) || !Array.isArray(map.exits)) return false
-  const hasMainEntrance = map.entrances.some((point) => point?.x === 5 && point?.y === MAP_ROWS - 1)
-  const hasMainExit = map.exits.some((point) => point?.x === 5 && point?.y === MAP_ROWS - 1)
-  const hasCrossPassage = map.passages.some((passage) => passage?.x === 0 && passage?.y === 4 && passage?.width === MAP_COLS && passage?.height === 1)
-  const hasEntrancePassage = map.passages.some((passage) => passage?.x === 5 && passage?.y === 5 && passage?.width === 1 && passage?.height === 2)
-  const validPassages = map.passages.every((passage) => passage && Number.isInteger(passage.x) && Number.isInteger(passage.y) && Number.isInteger(passage.width) && Number.isInteger(passage.height) && passage.width > 0 && passage.height > 0 && passage.x >= 0 && passage.y >= 0 && passage.x + passage.width <= MAP_COLS && passage.y + passage.height <= MAP_ROWS)
-  const validWalls = map.walls === undefined || Array.isArray(map.walls) && map.walls.every((wall) => wall && Number.isInteger(wall.x) && Number.isInteger(wall.y) && wall.x >= 0 && wall.y >= 0 && wall.x < MAP_COLS && wall.y < MAP_ROWS)
-  return hasMainEntrance && hasMainExit && hasCrossPassage && hasEntrancePassage && validPassages && validWalls
+  const entrance = map.entrances.some((point) => point?.x === 5 && point?.y === height - 1)
+  const exit = map.exits.some((point) => point?.x === 5 && point?.y === height - 1)
+  const cross = map.passages.some((passage) => passage?.x === 0 && passage?.y === 4 && passage?.width === width && passage?.height === 1)
+  const entrancePassage = map.passages.some((passage) => passage?.x === 5 && passage?.y === 5 && passage?.width === 1 && passage?.height === height - 6)
+  const validPassages = map.passages.every((passage) => passage && Number.isInteger(passage.x) && Number.isInteger(passage.y) && Number.isInteger(passage.width) && Number.isInteger(passage.height) && passage.width > 0 && passage.height > 0 && passage.x >= 0 && passage.y >= 0 && passage.x + passage.width <= width && passage.y + passage.height <= height)
+  const validWalls = map.walls === undefined || Array.isArray(map.walls) && map.walls.every((wall) => wall && Number.isInteger(wall.x) && Number.isInteger(wall.y) && wall.x >= 0 && wall.y >= 0 && wall.x < width && wall.y < height)
+  return entrance && exit && cross && entrancePassage && validPassages && validWalls
 }
 
 function normalizeCompound(compound) {
   if (!compound || compound.version !== COMPOUND_DATA_VERSION || !isValidMap(compound.map) || !Array.isArray(compound.items)) return null
-  const passages = compound.map.passages.some((passage) => passage.id === 'upper-gallery') || compound.map.passages.some((passage) => passage.y === 3 && passage.x === 0 && passage.width === MAP_COLS && passage.height === 1)
-    ? compound.map.passages : [...compound.map.passages, { id: 'upper-gallery', x: 0, y: 3, width: MAP_COLS, height: 1 }]
+  const { width } = mapDimensions(compound.map)
+  const passages = compound.map.passages.some((passage) => passage.id === 'upper-gallery') || compound.map.passages.some((passage) => passage.y === 3 && passage.x === 0 && passage.width === width && passage.height === 1)
+    ? compound.map.passages : [...compound.map.passages, { id: 'upper-gallery', x: 0, y: 3, width, height: 1 }]
   const normalized = {
     version: COMPOUND_DATA_VERSION,
     map: { ...compound.map, walls: (compound.map.walls ?? []).map((wall) => ({ ...wall })), rooms: compound.map.rooms.map((room) => ({ ...room })), passages: passages.map((passage) => ({ ...passage })), entrances: compound.map.entrances.map((point) => ({ ...point })), exits: compound.map.exits.map((point) => ({ ...point })) },
     items: compound.items.map((item) => item?.type === 'trap' ? normalizeTrapData(item) : item),
   }
   const editorItems = editorItemsFromCompound(normalized)
-  if (normalized.items.some((item) => item?.type !== 'trap') || !isValidLayout(editorItems)) return null
+  if (normalized.items.some((item) => item?.type !== 'trap') || !isValidLayout(editorItems, normalized.map)) return null
   return normalized
+}
+
+function upgradePersonalMap(compound) {
+  if (compound.map.width !== LEGACY_MAP_COLS || compound.map.height !== LEGACY_MAP_ROWS) return compound
+  const passages = compound.map.passages.map((passage) => {
+    if (passage.id === 'main-cross-passage' || passage.id === 'upper-gallery' || passage.x === 0 && passage.width === LEGACY_MAP_COLS && passage.height === 1 && (passage.y === 3 || passage.y === 4)) return { ...passage, width: MAP_COLS }
+    if (passage.id === 'entrance-passage' || passage.x === 5 && passage.y === 5 && passage.width === 1 && passage.height === LEGACY_MAP_ROWS - 6) return { ...passage, height: MAP_ROWS - 6 }
+    return { ...passage }
+  })
+  const expanded = {
+    ...compound,
+    map: {
+      ...compound.map,
+      width: MAP_COLS,
+      height: MAP_ROWS,
+      passages,
+      entrances: compound.map.entrances.map((point) => ({ ...point, y: MAP_ROWS - 1 })),
+      exits: compound.map.exits.map((point) => ({ ...point, y: MAP_ROWS - 1 })),
+    },
+  }
+  return normalizeCompound(expanded) ?? compound
 }
 
 export function migrateLegacyCompound(legacyItems) {
@@ -135,7 +166,7 @@ export function migrateLegacyCompound(legacyItems) {
 export function migrateVersion2Compound(compound) {
   if (!compound || compound.version !== 2 || !isValidMap(compound.map) || !Array.isArray(compound.items)) return null
   const flatItems = editorItemsFromCompound(compound)
-  if (!isValidLayout(flatItems)) return null
+  if (!isValidLayout(flatItems, compound.map)) return null
   const migrated = migrateLegacyCompound(flatItems)
   if (!migrated) return null
   migrated.map = {
@@ -172,19 +203,25 @@ export function loadCompound(storage) {
   if (parsed?.version === 1 && Array.isArray(parsed.items)) return persistMigration(store, parsed.items) ?? migrateLegacyCompound(STARTER_ITEMS)
   if (parsed?.version === 2) {
     const migratedV2 = migrateVersion2Compound(parsed)
-    if (migratedV2) { try { store?.setItem(COMPOUND_STORAGE_KEY, JSON.stringify(migratedV2)) } catch { /* Keep migrated data available if storage is read-only. */ } }
-    if (migratedV2) return migratedV2
+    const upgradedV2 = migratedV2 && upgradePersonalMap(migratedV2)
+    if (upgradedV2) { try { store?.setItem(COMPOUND_STORAGE_KEY, JSON.stringify(upgradedV2)) } catch { /* Keep migrated data available if storage is read-only. */ } }
+    if (upgradedV2) return upgradedV2
   }
   const normalized = normalizeCompound(parsed)
-  if (normalized) return normalized
+  if (normalized) {
+    const upgraded = upgradePersonalMap(normalized)
+    if (upgraded !== normalized) { try { store?.setItem(COMPOUND_STORAGE_KEY, JSON.stringify(upgraded)) } catch { /* Keep the migrated compound usable if storage is read-only. */ } }
+    return upgraded
+  }
 
   const parsedLegacy = read(LEGACY_COMPOUND_STORAGE_KEY)
   if (Array.isArray(parsedLegacy)) return persistMigration(store, parsedLegacy) ?? migrateLegacyCompound(STARTER_ITEMS)
   if (parsedLegacy?.version === 1 && Array.isArray(parsedLegacy.items)) return persistMigration(store, parsedLegacy.items) ?? migrateLegacyCompound(STARTER_ITEMS)
   if (parsedLegacy?.version === 2) {
     const migratedV2 = migrateVersion2Compound(parsedLegacy)
-    if (migratedV2) { try { store?.setItem(COMPOUND_STORAGE_KEY, JSON.stringify(migratedV2)) } catch { /* Keep migrated data available if storage is read-only. */ } }
-    if (migratedV2) return migratedV2
+    const upgradedV2 = migratedV2 && upgradePersonalMap(migratedV2)
+    if (upgradedV2) { try { store?.setItem(COMPOUND_STORAGE_KEY, JSON.stringify(upgradedV2)) } catch { /* Keep migrated data available if storage is read-only. */ } }
+    if (upgradedV2) return upgradedV2
   }
   return migrateLegacyCompound(STARTER_ITEMS)
 }
@@ -215,11 +252,14 @@ export function calculateBuildBudget(items, passageList = null) {
     for (let y = area.y; y < area.y + height; y += 1) for (let x = area.x; x < area.x + width; x += 1) activeTiles.add(`${x}:${y}`)
   }
   const paidRoomCosts = items.filter((item) => item.type === 'room' && !item.free).length * ROOM_COST
-  return BUILD_BUDGET + paidRoomCosts + activeTiles.size * AREA_BUDGET_BONUS
+  const basePassageTiles = map.passages.filter((passage) => ['main-cross-passage', 'upper-gallery', 'entrance-passage'].includes(passage.id)).reduce((total, passage) => total + passage.width * passage.height, 0)
+  const legacyBasePassageTiles = LEGACY_MAP_COLS * 2 + 2
+  return BUILD_BUDGET + paidRoomCosts + Math.max(0, activeTiles.size - Math.max(0, basePassageTiles - legacyBasePassageTiles)) * AREA_BUDGET_BONUS
 }
 
-export function placePassageTile(passages, x, y) {
-  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return { error: 'bounds' }
+export function placePassageTile(passages, x, y, map = null) {
+  const { width, height } = mapDimensions(map)
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= width || y >= height) return { error: 'bounds' }
   if (passages.some((passage) => x >= passage.x && x < passage.x + passage.width && y >= passage.y && y < passage.y + passage.height)) return { error: 'occupied' }
   const passage = { id: `passage-${x}-${y}`, x, y, width: 1, height: 1 }
   return { passages: [...passages, passage], passage }
@@ -232,34 +272,42 @@ export function removePassageTile(passages, x, y) {
   return { passages: passages.filter((item) => item.id !== passage.id), passage }
 }
 
-export function placeRoom(items, x, y, id) {
+export function placeRoom(items, x, y, id, map = null) {
+  const { width, height } = mapDimensions(map)
+  const entrance = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
   const w = 2
   const h = 2
-  const blocksRoute = (y <= 4 && y + h > 4) || (x <= 5 && x + w > 5 && y + h > 5)
-  if (x + w > MAP_COLS || y + h > MAP_ROWS || blocksRoute || items.some((item) => overlaps(item, x, y, w, h))) return { error: 'blocked' }
+  const blocksRoute = (y <= crossY && y + h > crossY) || (x <= entrance.x && x + w > entrance.x && y + h > crossY + 1)
+  if (x + w > width || y + h > height || blocksRoute || items.some((item) => overlaps(item, x, y, w, h))) return { error: 'blocked' }
   const item = { id, type: 'room', x, y, w, h, label: 'חדר חדש' }
   const nextItems = [...items, item]
-  return canReachEntrance(nextItems) ? { items: nextItems, item } : { error: 'route' }
+  return canReachEntrance(nextItems, map) ? { items: nextItems, item } : { error: 'route' }
 }
 
-export function placeTrap(items, x, y, id, trapType = DEFAULT_TRAP_TYPE) {
-  const entrance = x === 5 && y === MAP_ROWS - 1
+export function placeTrap(items, x, y, id, trapType = DEFAULT_TRAP_TYPE, map = null) {
+  const { height } = mapDimensions(map)
+  const entrancePoint = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
+  const entrance = x === entrancePoint.x && y === entrancePoint.y
   if (entrance || items.some((item) => overlaps(item, x, y, 1, 1))) return { error: 'blocked' }
   if (!TRAP_TYPES[trapType]) return { error: 'invalid-type' }
   const item = { id, type: 'trap', x, y, w: 1, h: 1, ...createTrapData(trapType), visibility: 'visible' }
   const nextItems = [...items, item]
-  return canReachEntrance(nextItems) ? { items: nextItems, item } : { error: 'route' }
+  return canReachEntrance(nextItems, map) ? { items: nextItems, item } : { error: 'route' }
 }
 
-export function moveItem(items, id, x, y) {
+export function moveItem(items, id, x, y, map = null) {
+  const { width, height } = mapDimensions(map)
+  const entrance = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
   const moving = items.find((item) => item.id === id)
   if (!moving) return { error: 'missing' }
-  const blocksRoute = moving.type === 'room' && ((y <= 4 && y + moving.h > 4) || (x <= 5 && x + moving.w > 5 && y + moving.h > 5))
-  const blocksEntrance = x <= 5 && x + moving.w > 5 && y <= MAP_ROWS - 1 && y + moving.h > MAP_ROWS - 1
-  const blocked = x < 0 || y < 0 || x + moving.w > MAP_COLS || y + moving.h > MAP_ROWS || blocksRoute || blocksEntrance || items.some((item) => item.id !== id && overlaps(item, x, y, moving.w, moving.h))
+  const blocksRoute = moving.type === 'room' && ((y <= crossY && y + moving.h > crossY) || (x <= entrance.x && x + moving.w > entrance.x && y + moving.h > crossY + 1))
+  const blocksEntrance = x <= entrance.x && x + moving.w > entrance.x && y <= height - 1 && y + moving.h > height - 1
+  const blocked = x < 0 || y < 0 || x + moving.w > width || y + moving.h > height || blocksRoute || blocksEntrance || items.some((item) => item.id !== id && overlaps(item, x, y, moving.w, moving.h))
   if (blocked) return { error: 'blocked' }
   const nextItems = items.map((item) => item.id === id ? { ...item, x, y } : item)
-  return canReachEntrance(nextItems) ? { items: nextItems } : { error: 'route' }
+  return canReachEntrance(nextItems, map) ? { items: nextItems } : { error: 'route' }
 }
 
 export function removeItem(items, id) {

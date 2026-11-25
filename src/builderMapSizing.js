@@ -10,7 +10,7 @@ export const BUILDER_MAP_METRICS = Object.freeze({
   frameBleed: 0,
 })
 
-export function calculateBuilderMapGeometry(width, height, columns = 12, rows = 8) {
+export function calculateBuilderMapGeometry(width, height, columns = 16, rows = 10) {
   const { cellGap, gridPadding, gridBorder, rowAxisWidth, rowAxisGap, columnAxisBand, entranceBandHeight, frameBleed } = BUILDER_MAP_METRICS
   const horizontalChrome = (columns - 1) * cellGap + 2 * (gridPadding + gridBorder) + rowAxisWidth + rowAxisGap + frameBleed
   const verticalChrome = (rows - 1) * cellGap + 2 * (gridPadding + gridBorder) + columnAxisBand + entranceBandHeight + frameBleed

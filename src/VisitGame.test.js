@@ -89,8 +89,10 @@ test('visit inspectors float over a single-column workspace without overriding t
 
 test('the visit visual layer follows saved guest position and facing without changing movement state', () => {
   assert.match(source, /className="visit-guest-layer"/)
-  assert.match(source, /left: `\$\{\(\(visit\.guest\.position\.x \+ 0\.5\) \/ MAP_COLS\) \* 100\}%`/)
-  assert.match(source, /top: `\$\{\(\(visit\.guest\.position\.y \+ 0\.5\) \/ MAP_ROWS\) \* 100\}%`/)
+  assert.match(source, /const columns = compound\.map\.width/)
+  assert.match(source, /const rows = compound\.map\.height/)
+  assert.match(source, /left: `\$\{\(\(visit\.guest\.position\.x \+ 0\.5\) \/ columns\) \* 100\}%`/)
+  assert.match(source, /top: `\$\{\(\(visit\.guest\.position\.y \+ 0\.5\) \/ rows\) \* 100\}%`/)
   assert.match(source, /facingRotationDegrees\(visit\.guest\.facing \?\? 'north'\)/)
   assert.match(source, /visit-guest-damage/)
   assert.match(source, /visit-guest-equipment/)
@@ -113,9 +115,8 @@ test('Dark Neon Adventure effects are scoped, responsive, non-interactive, and r
 })
 
 test('builder and visit use the same row-major coordinates and left-to-right map orientation', () => {
-  const rowMajor = /const x = index % MAP_COLS\s+const y = Math\.floor\(index \/ MAP_COLS\)/
-  assert.match(builderSource, rowMajor)
-  assert.match(source, rowMajor)
+  assert.match(builderSource, /const x = index % columns\s+const y = Math\.floor\(index \/ columns\)/)
+  assert.match(source, /const x = index % columns\s+const y = Math\.floor\(index \/ columns\)/)
   assert.match(builderStyles, /\.compound-grid,\.map-coordinates-top\{direction:ltr\}/)
   assert.match(styles, /\.visit-map\{direction:ltr\}/)
 

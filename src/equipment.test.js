@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createEquipmentStore, createVisitEquipment, loadEquipmentStore, saveEquipmentStore, selectTools, validateToolSelection, consumeToolUse, equipmentDetectsTrap, EQUIPMENT_STORAGE_KEY } from './equipment.js'
-import { createCompoundData, STARTER_ITEMS } from './compound.js'
+import { STARTER_ITEMS } from './compound.js'
+import { createLegacyCompoundFixture } from './legacyCompoundFixture.js'
 import { createVisit, loadActiveVisit, saveActiveVisit } from './visitEngine.js'
 
 function memoryStorage() {
@@ -33,7 +34,7 @@ test('tool inventory persists across reload and visit charges are isolated to a 
   assert.equal(consumeToolUse(equipment, 'insulated-gloves', 'electric', 'trap-1').error, 'already-used')
   assert.equal(equipment.tools['insulated-gloves'].usesRemaining, 0)
 
-  const compound = createCompoundData(STARTER_ITEMS)
+  const compound = createLegacyCompoundFixture(STARTER_ITEMS)
   const visit = createVisit(compound, { id: 'equipment-restore', equipment })
   assert.equal(saveActiveVisit(compound, visit, storage), true)
   const restored = loadActiveVisit(storage)
@@ -59,7 +60,7 @@ test('a manually used compatible tool mitigates trap damage and persists its con
   const { createTrapData } = await import('./traps.js')
   const { resolvePendingTrap } = await import('./visitEngine.js')
   const trap = { id: 'electric-one', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('electric'), activation: { event: 'manual' } }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['insulated-gloves'] })
   const visit = createVisit(compound, { id: 'mitigation', equipment })
   visit.pendingAction = { trapId: trap.id, position: { x: trap.x, y: trap.y }, kind: 'trap' }
@@ -74,7 +75,7 @@ test('gas mask protection continues for the same active gas trap and the visit s
   const { createTrapData } = await import('./traps.js')
   const { resolvePendingTrap, saveActiveVisit, loadActiveVisit } = await import('./visitEngine.js')
   const trap = { id: 'gas-one', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('gas'), effect: { ...createTrapData('gas').effect, strength: 2, durationTurns: 3 }, activation: { event: 'manual' } }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['gas-mask'] })
   const visit = createVisit(compound, { id: 'gas-protection', equipment })
   visit.pendingAction = { trapId: trap.id, position: { x: trap.x, y: trap.y }, kind: 'trap' }
@@ -93,7 +94,7 @@ test('automatic electrical traps pause for a tool decision and still deal health
   const { createTrapData } = await import('./traps.js')
   const { advanceVisit, resolvePendingTrap } = await import('./visitEngine.js')
   const trap = { id: 'electric-auto', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('electric') }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['insulated-gloves'] })
   const initial = createVisit(compound, { id: 'electric-auto-visit', equipment })
   const pending = advanceVisit(compound, initial)
@@ -124,7 +125,7 @@ test('floor kit detects a hidden nearby floor trap and changes restart into a st
   const { createTrapData } = await import('./traps.js')
   const { advanceVisit, resolvePendingTrap } = await import('./visitEngine.js')
   const trap = { id: 'floor-hidden', type: 'trap', x: 5, y: 6, w: 1, h: 1, visibility: 'hidden', ...createTrapData('floor') }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['floor-kit'] })
   const initial = createVisit(compound, { id: 'floor-recovery', equipment })
   assert.equal(equipmentDetectsTrap(equipment, trap, initial.guest.position), true)
@@ -145,7 +146,7 @@ test('door kit detects and shortens timed locks, while key-required doors remain
   const { createTrapData } = await import('./traps.js')
   const { advanceVisit, resolvePendingTrap } = await import('./visitEngine.js')
   const timed = { id: 'door-timed', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('door'), effect: { ...createTrapData('door').effect, lockDuration: 3 } }
-  const compound = createCompoundData([...STARTER_ITEMS, timed])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, timed])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['door-kit'] })
   const initial = createVisit(compound, { id: 'door-tool-visit', equipment })
   assert.equal(equipmentDetectsTrap(equipment, timed, initial.guest.position), true)
@@ -157,7 +158,7 @@ test('door kit detects and shortens timed locks, while key-required doors remain
   assert.equal(result.equipment.tools['door-kit'].usesRemaining, 0)
 
   const keyDoor = { ...timed, id: 'door-key', effect: { ...timed.effect, openMode: 'key' } }
-  const keyCompound = createCompoundData([...STARTER_ITEMS, keyDoor])
+  const keyCompound = createLegacyCompoundFixture([...STARTER_ITEMS, keyDoor])
   const keyVisit = createVisit(keyCompound, { id: 'door-key-visit', equipment: createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['door-kit'] }) })
   const encounter = advanceVisit(keyCompound, keyVisit)
   assert.equal(encounter.pendingAction, null)
@@ -169,7 +170,7 @@ test('gas mask pauses before automatic gas, protects each exposed turn, and uses
   const { createTrapData } = await import('./traps.js')
   const { advanceVisit, resolvePendingTrap } = await import('./visitEngine.js')
   const trap = { id: 'gas-auto', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('gas'), effect: { ...createTrapData('gas').effect, strength: 1, durationTurns: 3 } }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['gas-mask'] })
   const pending = advanceVisit(compound, createVisit(compound, { id: 'gas-auto-visit', equipment }))
   assert.equal(pending.pendingAction.kind, 'auto-trap')
@@ -186,7 +187,7 @@ test('automatic encounters cannot be skipped to bypass the trap and active-visit
   const { createTrapData } = await import('./traps.js')
   const { advanceVisit, resolvePendingTrap } = await import('./visitEngine.js')
   const trap = { id: 'floor-auto', type: 'trap', x: 5, y: 6, w: 1, h: 1, ...createTrapData('floor') }
-  const compound = createCompoundData([...STARTER_ITEMS, trap])
+  const compound = createLegacyCompoundFixture([...STARTER_ITEMS, trap])
   const equipment = createVisitEquipment({ ...createEquipmentStore(), selectedToolIds: ['floor-kit'] })
   const pending = advanceVisit(compound, createVisit(compound, { id: 'no-skip', equipment }))
   const resolved = resolvePendingTrap(compound, pending, false)
