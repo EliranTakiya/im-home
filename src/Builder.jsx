@@ -153,6 +153,8 @@ export default function Builder({ onHome }) {
   const mapFitStyle = {
     '--map-fit-width': `${mapGeometry.contentWidth}px`,
     '--map-fit-height': `${mapGeometry.contentHeight}px`,
+    '--map-grid-outer-width': `${mapGeometry.contentWidth + 2 * (BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder)}px`,
+    '--map-grid-outer-height': `${mapGeometry.contentHeight + 2 * (BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder)}px`,
     '--map-grid-track-width': `${mapGeometry.trackWidth}px`,
     '--map-grid-track-height': `${mapGeometry.trackHeight}px`,
     '--map-cell-size': `${mapGeometry.cellSize}px`,
