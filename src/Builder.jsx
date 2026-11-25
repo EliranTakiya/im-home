@@ -91,9 +91,9 @@ function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, select
   </aside>
 }
 
-function RouteAnalysis({ analysis, onClose }) {
+function RouteAnalysis({ analysis, onClose, className = '' }) {
   const coord = (point) => `${String.fromCharCode(65 + point.x)}${point.y + 1}`
-  return <section className={`route-analysis ${analysis.reachable ? '' : 'route-analysis-invalid'}`} aria-live="polite">
+  return <section className={`route-analysis ${className} ${analysis.reachable ? '' : 'route-analysis-invalid'}`} aria-live="polite">
     <div><span className="map-kicker">ניתוח מסלולים</span><b>{analysis.reachable ? 'היעד נגיש' : 'אין מסלול חוקי ליעד'}</b>{onClose && <button type="button" className="route-analysis-close" onClick={onClose}>חזרה למפה</button>}</div>
     <div className="route-analysis-stats">
       <span><b>{analysis.shortestRisk ?? '—'}</b> סיכון במסלול הקצר</span>
@@ -279,6 +279,7 @@ export default function Builder({ onHome }) {
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
           <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} /></div>
           <div className="map-panel-foot"><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
+          {analysisOpen && <RouteAnalysis analysis={routeAnalysis} onClose={() => setAnalysisOpen(false)} className="route-analysis-phone-landscape" />}
         </div>} />
     </WorkspaceFrame>
     <div className="builder-footer"><span>המפה נשמרת מקומית בדפדפן</span><span>לכל הגנה יש דרך להתמודד איתה <i /></span><span>אב טיפוס 0.2</span></div>
