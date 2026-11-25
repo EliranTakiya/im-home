@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import loadingBackground from './assets/original loading screen image.jpeg'
 import './OfficialLoadingScreen.css'
 
-const MINIMUM_DISPLAY_MS = 500
+const MINIMUM_DISPLAY_MS = 5000
 
 export default function OfficialLoadingScreen({ onReady, appReady = false }) {
   const artworkRef = useRef(null)

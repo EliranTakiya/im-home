@@ -41,6 +41,45 @@
 @media(max-height:520px) and (orientation:landscape){.builder-screen{padding-inline:12px}.builder-topbar{height:48px;flex:0 0 48px}.builder-heading{padding-block:6px}.builder-heading h1{font-size:22px}.builder-heading p,.builder-kicker{font-size:9px}.budget-card{width:165px;padding:6px 8px}.budget-card>span{font-size:8px}.budget-card>b{font-size:15px}.budget-track{margin-block:4px}.budget-note{font-size:7px}.builder-workspace .ih-workspace-inspector-slot{inset-block-start:4px;max-height:calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}.builder-toolbar:not(.builder-toolbar-floating){inset-block-start:calc(68px + env(safe-area-inset-top));width:205px;max-height:calc(100dvh - 78px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:9px}.builder-toolbar:not(.builder-toolbar-floating) .build-option{min-height:45px;margin-bottom:4px}.builder-toolbar:not(.builder-toolbar-floating) .toolbar-heading{margin-bottom:6px}.builder-toolbar-floating .build-option{min-height:44px}.map-panel{max-height:calc(100dvh - 112px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding-block:8px}.map-frame{margin-block:4px}.compound-grid{grid-template-rows:repeat(var(--rows),minmax(40px,1fr))}.map-instruction{min-height:22px;padding-top:5px;font-size:9px}.map-panel-foot{margin-top:6px;padding-top:5px}.route-analysis{margin-top:8px;padding:8px}.builder-footer{min-height:28px}}
 @media(prefers-reduced-motion:reduce){.builder-screen *{scroll-behavior:auto!important}}
 
+/* Landscape tools occupy a real column; the map remeasures instead of sitting behind a drawer. */
+@media (orientation:landscape) and (max-height:600px){
+  .builder-screen{height:100dvh;min-height:0;padding-block:env(safe-area-inset-top) env(safe-area-inset-bottom);gap:0}
+  .builder-topbar{height:38px;min-height:38px;flex:0 0 38px}
+  .builder-brand{font-size:10px}.builder-logo{width:23px;height:23px;font-size:16px}.prototype-tag{font-size:8px}
+  .builder-tools-toggle,.home-button{min-height:29px;padding-inline:8px;font-size:9px}
+  .builder-heading{display:none}
+  .builder-workspace{display:flex;flex:1;min-height:0;overflow:hidden}
+  .builder-workspace>.ih-workspace-canvas{display:flex;flex:1;min-height:0;overflow:hidden}
+  .builder-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0;flex:1;min-height:0}
+  .builder-layout.tools-open{grid-template-columns:minmax(0,1fr) minmax(185px, min(24vw,245px));gap:8px}
+  .map-panel{height:100%;padding:3px 6px;overflow:hidden}
+  .map-panel-head{min-height:24px}.map-panel-head h2{font-size:11px}.map-panel-head h2 small{font-size:8px}
+  .map-instruction{min-height:16px;padding:2px 0;font-size:8px}
+  .map-panel-foot{min-height:20px;margin-top:2px;padding-top:2px;flex-wrap:nowrap;font-size:7px}
+  .map-fit-viewport{min-height:0}
+  .builder-toolbar:not(.builder-toolbar-floating){display:none}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open{position:relative;inset:auto;display:flex;flex-direction:column;align-self:stretch;width:auto;min-width:0;max-height:100%;overflow:auto;overscroll-behavior:contain;padding:8px;scrollbar-gutter:stable;border-radius:8px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .toolbar-heading{margin-bottom:5px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .toolbar-heading h2{font-size:12px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .build-option{min-height:38px;margin-bottom:3px;padding:4px;grid-template-columns:25px minmax(0,1fr) auto;gap:5px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .option-copy b{font-size:9px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .option-copy small{font-size:7px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .toolbar-hint{margin-top:6px;padding:6px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .toolbar-hint p{font-size:7px}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .save-button{position:sticky;inset-block-end:-8px;min-height:34px;margin-top:6px;flex:0 0 auto}
+  .builder-footer{min-height:18px;font-size:6px}
+  .builder-workspace .ih-workspace-inspector-slot{inset-block:4px;max-height:calc(100% - 8px)}
+}
+
+@media (orientation:portrait) and (max-width:700px){
+  .builder-screen{height:100dvh;min-height:0;overflow:hidden;padding-block:env(safe-area-inset-top) env(safe-area-inset-bottom)}
+  .builder-heading{padding-block:5px;gap:6px}.builder-heading h1{font-size:19px}.builder-heading p{display:none}
+  .builder-workspace,.builder-workspace>.ih-workspace-canvas{min-height:0;overflow:hidden}
+  .builder-layout{min-height:0;flex:1}.map-panel{min-height:0}
+  .map-panel-foot{flex-wrap:wrap;justify-content:center}
+  .builder-toolbar:not(.builder-toolbar-floating).toolbar-open{max-height:min(48dvh,calc(100dvh - 54px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));}
+}
+
 /* Fit the whole 12×8 board to the workspace; secondary tools float above it. */
 .builder-screen{height:100dvh;min-height:0;overflow:hidden;padding-inline-start:max(10px,env(safe-area-inset-right));padding-inline-end:max(10px,env(safe-area-inset-left));padding-block-start:env(safe-area-inset-top);padding-block-end:env(safe-area-inset-bottom)}
 .builder-topbar{flex:0 0 auto;gap:10px}

@@ -202,8 +202,8 @@ function App() {
     {screen === 'perks' && visitDraft && <PerkSelection key={visitDraft.id} visitId={visitDraft.id} onStart={continueToEquipment} onCancel={cancelVisitDraft} />}
     {screen === 'equipment' && visitDraft && <EquipmentSelection onStart={startVisitWithEquipment} onCancel={() => setScreen('perks')} startError={visitSaveError} />}
     {screen === 'loading' && <OfficialLoadingScreen appReady={appReady} onReady={finishStartup} />}
-    <OrientationPrompt active={screen !== 'loading'} />
-    <GameShell className="command-center-shell"><main className="game-shell command-center" dir="rtl" style={{ display: screen === 'home' ? 'block' : 'none' }}>
+    <OrientationPrompt active={screen === 'home'} />
+    <GameShell className={`command-center-shell ${screen === 'home' ? '' : 'shell-inactive'}`}><main className="game-shell command-center" dir="rtl" style={{ display: screen === 'home' ? 'block' : 'none' }}>
       <header className="topbar">
         <a className="brand" href="#home" aria-label="I’m Home — מסך הבית">
           <span className="brand-mark"><HomeMark /></span>

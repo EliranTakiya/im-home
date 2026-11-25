@@ -9,7 +9,7 @@ test('the official loading artwork is the first screen and yields to the existin
 
   assert.match(app, /useState\('loading'\)/)
   assert.match(app, /screen === 'loading' && <OfficialLoadingScreen appReady=\{appReady\} onReady=\{finishStartup\}/)
-  assert.ok(app.indexOf("screen === 'loading'") < app.indexOf('className="command-center-shell"'))
+  assert.ok(app.indexOf("screen === 'loading'") < app.indexOf('className={`command-center-shell'))
   assert.match(loading, /original loading screen image\.jpeg/)
   assert.match(loading, /onLoad=\{markArtworkReady\} onError=\{markArtworkReady\}/)
   assert.ok(background.length > 1000)
