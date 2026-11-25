@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MAP_COLS, MAP_ROWS, ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
 import { analyzeCompoundPaths } from './navigation.js'
+import { BUILDER_MAP_METRICS, calculateBuilderMapGeometry } from './builderMapSizing.js'
 import { ActionFooter, FloatingInspector, MapFirstLayout, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
 import './Builder.css'
 import './BuilderWorkspace.css'
@@ -134,10 +135,22 @@ export default function Builder({ onHome }) {
     return () => observer.disconnect()
   }, [])
 
-  const mapCellSize = Math.max(0, Math.min((mapViewport.width - 18 - 45) / MAP_COLS, (mapViewport.height - 27 - 33) / MAP_ROWS))
-  const fittedGridWidth = MAP_COLS * mapCellSize + 33
-  const fittedGridHeight = MAP_ROWS * mapCellSize + 21
-  const mapFitStyle = { '--map-fit-width': `${fittedGridWidth}px`, '--map-fit-height': `${fittedGridHeight}px`, '--map-grid-track-width': `${MAP_COLS * mapCellSize}px`, '--map-grid-track-height': `${MAP_ROWS * mapCellSize}px`, '--map-cell-size': `${mapCellSize}px` }
+  const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, MAP_COLS, MAP_ROWS)
+  const mapFitStyle = {
+    '--map-fit-width': `${mapGeometry.contentWidth}px`,
+    '--map-fit-height': `${mapGeometry.contentHeight}px`,
+    '--map-grid-track-width': `${mapGeometry.trackWidth}px`,
+    '--map-grid-track-height': `${mapGeometry.trackHeight}px`,
+    '--map-cell-size': `${mapGeometry.cellSize}px`,
+    '--map-cell-gap': `${BUILDER_MAP_METRICS.cellGap}px`,
+    '--map-grid-padding': `${BUILDER_MAP_METRICS.gridPadding}px`,
+    '--map-grid-border': `${BUILDER_MAP_METRICS.gridBorder}px`,
+    '--map-row-axis-width': `${BUILDER_MAP_METRICS.rowAxisWidth}px`,
+    '--map-row-axis-gap': `${BUILDER_MAP_METRICS.rowAxisGap}px`,
+    '--map-column-axis-band': `${BUILDER_MAP_METRICS.columnAxisBand}px`,
+    '--map-column-axis-height': `${BUILDER_MAP_METRICS.columnAxisHeight}px`,
+    '--map-entrance-band-height': `${BUILDER_MAP_METRICS.entranceBandHeight}px`,
+  }
 
   function handleCellClick(x, y) {
     if (moveId && moveId !== 'choose') {
