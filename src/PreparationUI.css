@@ -173,3 +173,19 @@
 }
 .challenge-result-modal{overflow:visible}
 .challenge-result-modal .ih-modal-content{min-height:0}
+
+/* A challenge-only Guest Perks view has no role-tab column; let its sole panel span the layout. */
+.preparation-game-shell .perk-selection-layout-single-role{width:100%;max-width:none;margin:7px 0 0;grid-template-columns:minmax(0,1fr);align-items:stretch}
+@media(orientation:landscape){
+  .preparation-game-shell .perk-selection-layout-single-role .perk-cards{grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:8px}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card{min-width:0;min-height:0;grid-template-columns:30px minmax(0,1fr);grid-template-areas:"icon copy" ". action";align-items:start;gap:6px 8px;padding:10px}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-icon{grid-area:icon;width:28px;height:28px;font-size:16px}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-copy{grid-area:copy;min-width:0}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-meta{display:flex;flex-wrap:wrap;gap:3px 7px;font-size:10px;line-height:1.35}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-copy h3{margin:2px 0 4px;font-size:12px}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-copy p{font-size:10px;line-height:1.45}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card-copy small,.preparation-game-shell .perk-selection-layout-single-role .perk-card-meta{font-size:9px;line-height:1.4}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-card>button{grid-area:action;justify-self:start;min-width:68px;min-height:36px;padding:5px 8px;font-size:10px}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-selection-actions{position:sticky;inset-block-end:0;min-height:48px;margin:4px -7px -7px;padding:5px 9px calc(5px + env(safe-area-inset-bottom))}
+  .preparation-game-shell .perk-selection-layout-single-role .perk-next{min-width:220px;min-height:38px;padding:7px 11px;font-size:10px}
+}

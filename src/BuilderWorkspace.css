@@ -171,7 +171,12 @@
 .builder-layout.ih-map-first-layout .map-fit-viewport .compound-grid{box-sizing:content-box;--cell-gap:3px;grid-column:2;justify-self:center;align-self:center;width:var(--map-fit-width);height:var(--map-fit-height);min-width:0;min-height:0;max-width:none;max-height:none;aspect-ratio:auto;grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-template-rows:repeat(var(--rows),minmax(0,1fr));padding:5px}
 .builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(112px,.62fr) minmax(0,4.2fr) minmax(160px,.88fr)}
 .builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(112px,.62fr) minmax(0,4.8fr)}
-.builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .save-button{position:static;margin-top:auto}
+.builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating).toolbar-open .save-button{position:sticky;inset-block-end:0;z-index:3;flex:0 0 auto;margin-top:auto;box-shadow:0 -5px 10px #14161166}
 .builder-utility-rail>.route-analysis{min-height:0}
-@media(orientation:landscape) and (max-height:600px){.builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(112px,.62fr) minmax(0,4.2fr) minmax(160px,.88fr)}.builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(112px,.62fr) minmax(0,4.8fr)}}
+@media(orientation:landscape) and (max-height:600px){.builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(104px,.55fr) minmax(0,4.5fr) minmax(148px,.82fr)}.builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(104px,.55fr) minmax(0,5fr)}.builder-layout.ih-map-first-layout .map-panel-head{min-height:17px}.builder-layout.ih-map-first-layout .map-panel-head h2{font-size:10px}.builder-layout.ih-map-first-layout .map-instruction{min-height:12px;padding:1px 0;font-size:7px;line-height:1.2}.builder-layout.ih-map-first-layout .map-panel-foot{min-height:10px;margin-top:0;padding-top:0;font-size:7px}}
 @media(orientation:portrait) and (max-width:760px){.builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(0,1fr)}.builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(0,1fr)}}
+
+.builder-layout.ih-map-first-layout .compound-grid .trap-mark{font-size:clamp(13px,calc(var(--map-cell-size) * .55),30px)}
+.builder-layout.ih-map-first-layout .compound-grid .room-name{font-size:clamp(9px,calc(var(--map-cell-size) * .3),15px)}
+.builder-layout.ih-map-first-layout .compound-grid .corridor-mark,.builder-layout.ih-map-first-layout .compound-grid .entrance-mark{font-size:clamp(8px,calc(var(--map-cell-size) * .25),12px)}
+.builder-layout.ih-map-first-layout .compound-grid .trap-hidden-tag{font-size:clamp(6px,calc(var(--map-cell-size) * .18),10px)}

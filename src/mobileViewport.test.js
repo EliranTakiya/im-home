@@ -9,11 +9,16 @@ test('Builder shares one measured viewport for its coordinates and complete 12 b
   assert.match(component, /new ResizeObserver\(measure\)/)
   assert.match(component, /mapCellSize = Math\.max\(0, Math\.min\(\(mapViewport\.width - 18 - 45\) \/ MAP_COLS, \(mapViewport\.height - 27 - 33\) \/ MAP_ROWS\)\)/)
   assert.match(component, /'--map-grid-track-width': `\$\{MAP_COLS \* mapCellSize\}px`/)
+  assert.match(component, /'--map-cell-size': `\$\{mapCellSize\}px`/)
   assert.match(component, /className="map-fit-viewport" ref=\{mapViewportRef\}/)
   assert.match(component, /<MapFirstLayout className=\{`builder-layout/)
   assert.match(css, /\.builder-layout\.ih-map-first-layout \.map-fit-viewport \.compound-grid\{[^}]*aspect-ratio:auto/)
   assert.match(css, /\.map-coordinates-top\{[^}]*width:var\(--map-grid-track-width\)/)
   assert.match(css, /\.map-coordinates-side\{height:var\(--map-grid-track-height\)/)
+  assert.match(css, /\.map-fit-viewport \.compound-grid\{[^}]*max-width:none;max-height:none/)
+  assert.match(css, /\.map-panel-head\{min-height:17px\}/)
+  assert.match(css, /\.map-instruction\{min-height:12px/)
+  assert.match(css, /\.compound-grid \.trap-mark\{font-size:clamp\(13px,calc\(var\(--map-cell-size\) \* \.55\),30px\)/)
   assert.match(css, /\.map-coordinates-top[^}]*grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/)
   assert.match(css, /\.map-coordinates-side\{grid-template-rows:repeat\(8,minmax\(0,1fr\)\)/)
   assert.match(css, /\.map-panel\{[^}]*overflow:hidden/)
@@ -36,6 +41,16 @@ test('visit journal renders a compact newest-first view while retaining full sav
   assert.match(tests, /leaves the original complete history untouched/)
   assert.match(styles, /visit-live-journal/)
   assert.match(styles, /prefers-reduced-motion:reduce\)\{\.visit-live-journal/)
+})
+
+test('single-role Guest Perks uses the full landscape track and keeps its two cards and actions accessible', async () => {
+  const component = await readFile(new URL('./PerkSelection.jsx', import.meta.url), 'utf8')
+  const styles = await readFile(new URL('./PreparationUI.css', import.meta.url), 'utf8')
+
+  assert.match(component, /roles\.length === 1 \? 'perk-selection-layout-single-role'/)
+  assert.match(styles, /\.perk-selection-layout-single-role\{[^}]*grid-template-columns:minmax\(0,1fr\);align-items:stretch/)
+  assert.match(styles, /\.perk-selection-layout-single-role \.perk-cards\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/)
+  assert.match(styles, /\.perk-selection-layout-single-role \.perk-selection-actions\{position:sticky/)
 })
 
 test('Builder tool selection remains available until manually closed and route analysis uses a fixed utility zone', async () => {
