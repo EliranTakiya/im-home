@@ -11,6 +11,7 @@ import { applySelectedPerkEffect, hasNearbyTrapWarning, hostPerkAvailability } f
 import { createGuardianState, evaluateGuardian, guardianAllowedForVisit, humanOwnerCanAct, GUARDIAN_DIFFICULTIES } from './guardianAI.js'
 import { elapsedGameplayMs, formatGameplayTime, pauseGameplayTimer, resumeGameplayTimer } from './gameTimer.js'
 import { createVisitTrapPlacement, legalVisitTrapTiles } from './trapPlacement.js'
+import { getRecentVisitEvents } from './visitJournal.js'
 import { ActionFooter, FloatingInspector, MapFirstLayout, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
 import './VisitGame.css'
 import './VisitGameShell.css'
@@ -146,6 +147,11 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
   const [clockNow, setClockNow] = useState(0)
   const [perkStore, setPerkStore] = useState(() => loadPerkStore())
   const [perkNotice, setPerkNotice] = useState('')
+  const newestEvent = visit.events.at(-1)
+  const newestEventKey = newestEvent ? `${visit.id}:${visit.events.length - 1}:${newestEvent.turn}:${newestEvent.type}:${newestEvent.trapId ?? ''}` : ''
+  const journalVisitIdRef = useRef(visit.id)
+  const seenNewestEventRef = useRef(newestEventKey)
+  const [highlightedEventKey, setHighlightedEventKey] = useState('')
   const visitRef = useRef(visit)
   const challengeResultRef = useRef(onChallengeResult)
   const autoTimerRef = useRef(null)
@@ -161,6 +167,20 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
 
   useEffect(() => { visitRef.current = visit }, [visit])
   useEffect(() => { challengeResultRef.current = onChallengeResult }, [onChallengeResult])
+
+  useEffect(() => {
+    if (journalVisitIdRef.current !== visit.id) {
+      journalVisitIdRef.current = visit.id
+      seenNewestEventRef.current = newestEventKey
+      setHighlightedEventKey('')
+      return undefined
+    }
+    if (!newestEventKey || newestEventKey === seenNewestEventRef.current) return undefined
+    seenNewestEventRef.current = newestEventKey
+    setHighlightedEventKey(newestEventKey)
+    const timeout = window.setTimeout(() => setHighlightedEventKey((current) => current === newestEventKey ? '' : current), 1200)
+    return () => window.clearTimeout(timeout)
+  }, [newestEventKey, visit.id])
 
   useEffect(() => {
     if (!visit.pendingAction) decisionLockRef.current = null
@@ -419,6 +439,14 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
             <button className="owner-participation-toggle" disabled={terminal || visit.visitType === 'player-house'} onClick={() => setVisit((current) => current.visitType === 'regular' ? ({ ...current, ownerMode: current.ownerMode === 'human' ? 'absent' : 'human' }) : current)}>{visit.ownerMode === 'human' ? 'הבעלים עזב' : visit.visitType === 'player-house' ? 'הרשאות הבעלים אינן זמינות לאורח' : 'בעל הבית מצטרף'}</button>
           </section>}
           <DirectionPad disabled={terminal || Boolean(visit.pendingAction)} facing={guest.facing ?? 'north'} onMove={moveGuest} />
+          <section className="visit-live-journal" aria-label="יומן אירועים חי" aria-live="polite">
+            <span className="visit-live-journal-heading">יומן משחק</span>
+            {visit.events.length ? <ol>{getRecentVisitEvents(visit.events).map((entry, index) => {
+              const eventIndex = visit.events.length - 1 - index
+              const eventKey = `${visit.id}:${eventIndex}:${entry.turn}:${entry.type}:${entry.trapId ?? ''}`
+              return <li key={eventKey} className={highlightedEventKey === eventKey ? 'visit-journal-event-new' : ''} title={entry.message}><i aria-hidden="true" />{entry.message}</li>
+            })}</ol> : <p>הביקור התחיל.</p>}
+          </section>
         </div>} />
       </div>
       </section>
@@ -456,7 +484,7 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
         {humanOwnerCanAct(visit) && <section className="visit-controls visit-host-perks" aria-label="הגנת בעל הבית בזמן אמת"><div className="visit-perk-panel-heading"><b>הצבת מלכודת בזמן אמת</b><span>{visit.runtimeTrapsPlaced ?? 0} הוצבו</span></div><select aria-label="בחירת משבצת למלכודת" value={selectedOwnerTile} onChange={(event) => setHostTrapTile(event.target.value)}>{ownerPlacementTiles.map((point) => <option key={`${point.x}:${point.y}`} value={`${point.x}:${point.y}`}>{String.fromCharCode(65 + point.x)}{point.y + 1}</option>)}</select><select aria-label="סוג המלכודת להצבה" value={hostTrapType} onChange={(event) => setHostTrapType(event.target.value)}>{Object.values(TRAP_TYPES).map((trap) => <option key={trap.id} value={trap.id}>{trap.name} · {trap.price}</option>)}</select><button disabled={terminal || Boolean(visit.pendingAction) || !selectedOwnerTile} onClick={placeOwnerTrap}>הציבו מלכודת</button><small>המלכודת תופיע במפה ותפעל בביקור הנוכחי. המחיר ומגבלת הבנייה הקיימים נאכפים.</small></section>}
         {detectedTraps.length > 0 && <details className="visit-details"><summary>סכנות שזוהו ({detectedTraps.length})</summary><div className="equipment-detections">{detectedTraps.map((trap) => <span key={trap.id}>{EQUIPMENT_CATALOG[Object.values(visit.equipment?.tools ?? {}).find((tool) => EQUIPMENT_CATALOG[tool.id]?.compatibleTrapTypes.includes(trap.trapType))?.id]?.name}: {detectionDescription(trap)}</span>)}</div></details>}<details className="visit-details"><summary>יומן ותוצאות</summary>
           <section className="visit-summary"><span className="visit-kicker">תוצאות בזמן אמת</span><div><span>זמן משחק</span><b>{gameplayTime}</b></div><div><span>צעדים</span><b>{guest.stepsTaken}</b></div><div><span>מלכודות שהופעלו</span><b>{trapsFound}</b></div><div><span>נזק מצטבר</span><b>{guest.damageTaken}</b></div><div><span>חיפושי מסלול מחדש</span><b>{visit.reroutes}</b></div></section>
-          <section className="visit-log"><span className="visit-kicker">יומן ביקור</span>{visit.events.length ? <ol>{[...visit.events].reverse().slice(0, 5).map((entry, index) => <li key={`${entry.turn}-${entry.type}-${index}`}><i />{entry.message}</li>)}</ol> : <p>הביקור התחיל. האורח ממתין לפקודה.</p>}</section>
+          <section className="visit-log"><span className="visit-kicker">יומן ביקור מלא</span>{visit.events.length ? <ol>{[...visit.events].reverse().map((entry, index) => <li key={`${visit.id}-${visit.events.length - 1 - index}-${entry.turn}-${entry.type}`}><i />{entry.message}</li>)}</ol> : <p>הביקור התחיל. האורח ממתין לפקודה.</p>}</section>
           {terminal && <section className="visit-score-panel"><span className="visit-kicker">ניקוד ביקור</span><b>{score.total}</b><small>יעילות {score.efficiency} · חיים {score.survival} · התמודדות {score.handledTraps} · ציוד {score.equipment} · השלמה {score.completion}</small></section>}
         </details>
       </aside></FloatingInspector>}

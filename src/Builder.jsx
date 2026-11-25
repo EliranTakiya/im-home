@@ -134,9 +134,10 @@ export default function Builder({ onHome }) {
     return () => observer.disconnect()
   }, [])
 
-  const availableGridHeight = Math.max(0, mapViewport.height - 36)
-  const fittedGridWidth = Math.max(0, Math.min(mapViewport.width - 24, availableGridHeight * MAP_COLS / MAP_ROWS))
-  const mapFitStyle = { '--map-fit-width': `${fittedGridWidth}px`, '--map-fit-height': `${fittedGridWidth * MAP_ROWS / MAP_COLS}px` }
+  const mapCellSize = Math.max(0, Math.min((mapViewport.width - 18 - 45) / MAP_COLS, (mapViewport.height - 27 - 33) / MAP_ROWS))
+  const fittedGridWidth = MAP_COLS * mapCellSize + 33
+  const fittedGridHeight = MAP_ROWS * mapCellSize + 21
+  const mapFitStyle = { '--map-fit-width': `${fittedGridWidth}px`, '--map-fit-height': `${fittedGridHeight}px`, '--map-grid-track-width': `${MAP_COLS * mapCellSize}px`, '--map-grid-track-height': `${MAP_ROWS * mapCellSize}px` }
 
   function handleCellClick(x, y) {
     if (moveId && moveId !== 'choose') {
