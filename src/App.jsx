@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Builder from './Builder.jsx'
 import VisitGame from './VisitGame.jsx'
 import PerkSelection from './PerkSelection.jsx'
@@ -9,6 +9,7 @@ import HostPerkBriefing from './HostPerkBriefing.jsx'
 import ChallengeSummary from './ChallengeSummary.jsx'
 import { GameShell } from './GameShell.jsx'
 import OfficialLoadingScreen from './OfficialLoadingScreen.jsx'
+import OrientationPrompt from './OrientationPrompt.jsx'
 import { createVisitEquipment, loadEquipmentStore } from './equipment.js'
 import { createVisit, loadActiveVisit, saveActiveVisit } from './visitEngine.js'
 import { createChallengeVisit } from './challengeVisit.js'
@@ -32,12 +33,19 @@ function HomeMark() {
 
 function App() {
   const [screen, setScreen] = useState('loading')
+  const [appReady, setAppReady] = useState(false)
   const [visit, setVisit] = useState(() => loadActiveVisit())
   const [visitDraft, setVisitDraft] = useState(null)
   const [visitSaveError, setVisitSaveError] = useState('')
   const [challengeProgress, setChallengeProgress] = useState(() => loadChallengeProgress())
   const [activeChallenge, setActiveChallenge] = useState(() => loadActiveChallenge())
   const [challengeDraft, setChallengeDraft] = useState(null)
+
+  useEffect(() => {
+    const readyTask = window.setTimeout(() => setAppReady(true), 0)
+    return () => window.clearTimeout(readyTask)
+  }, [])
+  const finishStartup = useCallback(() => setScreen('home'), [])
 
   function continueVisit() {
     const active = loadActiveVisit()
@@ -193,7 +201,8 @@ function App() {
     </div>}
     {screen === 'perks' && visitDraft && <PerkSelection key={visitDraft.id} visitId={visitDraft.id} onStart={continueToEquipment} onCancel={cancelVisitDraft} />}
     {screen === 'equipment' && visitDraft && <EquipmentSelection onStart={startVisitWithEquipment} onCancel={() => setScreen('perks')} startError={visitSaveError} />}
-    {screen === 'loading' && <OfficialLoadingScreen onReady={() => setScreen('home')} />}
+    {screen === 'loading' && <OfficialLoadingScreen appReady={appReady} onReady={finishStartup} />}
+    <OrientationPrompt active={screen !== 'loading'} />
     <GameShell className="command-center-shell"><main className="game-shell command-center" dir="rtl" style={{ display: screen === 'home' ? 'block' : 'none' }}>
       <header className="topbar">
         <a className="brand" href="#home" aria-label="I’m Home — מסך הבית">

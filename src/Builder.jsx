@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MAP_COLS, MAP_ROWS, ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
 import { analyzeCompoundPaths } from './navigation.js'
@@ -42,25 +42,25 @@ function CompoundMap({ items, passages, tool, moveId, onCellClick, onItemClick }
   </div>
 }
 
-function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage, saveDisabled, floating = false }) {
+function BuilderToolbar({ tool, setTool, moveId, setMoveId, selectedItem, selectedTrapType, onSelectTrapType, onChangeTrapType, onUpdateTrapSettings, onToggleTrapVisibility, onRemove, onSave, savedMessage, saveDisabled, open = false, onClose, floating = false }) {
   const selectedDefinition = TRAP_TYPES[selectedTrapType]
   const selectedTrapDefinition = selectedItem?.type === 'trap' ? TRAP_TYPES[selectedItem.trapType] : null
 
-  return <aside className={`builder-toolbar ${floating ? 'builder-toolbar-floating' : ''}`}>
-    <div className="toolbar-heading"><span className="toolbar-kicker">ערכת בנייה</span><h2>מה נבנה?</h2></div>
-    <button className={`build-option ${tool === 'room' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'room' ? null : 'room'); setMoveId(null) }}>
+  return <aside id="builder-tools" className={`builder-toolbar ${floating ? 'builder-toolbar-floating' : ''} ${open ? 'toolbar-open' : ''}`}>
+    <div className="toolbar-heading"><div><span className="toolbar-kicker">ערכת בנייה</span><h2>מה נבנה?</h2></div>{!floating && <button type="button" className="toolbar-close" onClick={onClose} aria-label="סגירת כלי הבנייה">×</button>}</div>
+    <button className={`build-option ${tool === 'room' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'room' ? null : 'room'); setMoveId(null); if (!floating) onClose?.() }}>
       <span className="option-icon room-option-icon">⌂</span><span className="option-copy"><b>חדר חדש</b><small>חדר קטן · 2×2 משבצות</small></span><strong>{ROOM_COST}<small> מטבעות</small></strong>
     </button>
-    <button className={`build-option ${tool === 'passage' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'passage' ? null : 'passage'); setMoveId(null) }}>
+    <button className={`build-option ${tool === 'passage' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'passage' ? null : 'passage'); setMoveId(null); if (!floating) onClose?.() }}>
       <span className="option-icon">┄</span><span className="option-copy"><b>הוספת מסדרון</b><small>הוסיפו משבצות וחברו בין אזורים</small></span><strong>נתיב</strong>
     </button>
-    <button className={`build-option ${tool === 'trap' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'trap' ? null : 'trap'); setMoveId(null) }}>
+    <button className={`build-option ${tool === 'trap' ? 'option-active' : ''}`} onClick={() => { setTool(tool === 'trap' ? null : 'trap'); setMoveId(null); if (!floating) onClose?.() }}>
       <span className={`option-icon trap-option-icon trap-kind-${selectedDefinition.id}`}>{selectedDefinition.glyph}</span><span className="option-copy"><b>הוספת מלכודת</b><small>{selectedDefinition.name}</small></span><strong>{calculateTrapPrice({ trapType: selectedDefinition.id, effect: selectedDefinition.defaultEffect })}<small> מטבעות</small></strong>
     </button>
-    {tool === 'trap' && <div className="trap-type-picker" aria-label="בחירת סוג מלכודת">{TRAP_TYPE_LIST.map((definition) => <button key={definition.id} className={`trap-type-choice ${selectedTrapType === definition.id ? 'type-choice-active' : ''}`} onClick={() => onSelectTrapType(definition.id)}><span className={`trap-kind-${definition.id}`}>{definition.glyph}</span><b>{definition.name}</b><small>{calculateTrapPrice({ trapType: definition.id, effect: definition.defaultEffect })} מטבעות</small></button>)}</div>}
+    {tool === 'trap' && <div className="trap-type-picker" aria-label="בחירת סוג מלכודת">{TRAP_TYPE_LIST.map((definition) => <button key={definition.id} className={`trap-type-choice ${selectedTrapType === definition.id ? 'type-choice-active' : ''}`} onClick={() => { onSelectTrapType(definition.id); if (!floating) onClose?.() }}><span className={`trap-kind-${definition.id}`}>{definition.glyph}</span><b>{definition.name}</b><small>{calculateTrapPrice({ trapType: definition.id, effect: definition.defaultEffect })} מטבעות</small></button>)}</div>}
     <div className="tool-divider" />
-    <button className={`edit-option ${moveId ? 'edit-active' : ''}`} onClick={() => { setMoveId(moveId ? null : 'choose'); setTool(null) }}><span>✥</span> הזזת פריט</button>
-    <button className="edit-option remove-option" onClick={onRemove}><span>⌫</span> הסרת פריט נבחר</button>
+    <button className={`edit-option ${moveId ? 'edit-active' : ''}`} onClick={() => { setMoveId(moveId ? null : 'choose'); setTool(null); if (!floating) onClose?.() }}><span>✥</span> הזזת פריט</button>
+    <button className="edit-option remove-option" onClick={() => { onRemove(); if (!floating) onClose?.() }}><span>⌫</span> הסרת פריט נבחר</button>
     {selectedItem && <div className="selected-item-card"><span>פריט נבחר</span><b>{selectedItem.type === 'trap' ? selectedItem.name : selectedItem.label}</b>{selectedItem.type === 'trap' ? <>
       <p>{selectedItem.description}</p><p>מחיר: <strong>{selectedItem.price}</strong> מטבעות · גילוי: <strong>{selectedItem.visibility === 'hidden' ? 'נסתרת' : 'גלויה'}</strong></p>
       <label className="trap-setting">שם המלכודת<input value={selectedItem.name} maxLength={32} onChange={(event) => onUpdateTrapSettings(selectedItem.id, { name: event.target.value })} /></label>
@@ -101,6 +101,8 @@ function RouteAnalysis({ analysis }) {
 }
 
 export default function Builder({ onHome }) {
+  const mapViewportRef = useRef(null)
+  const [mapViewport, setMapViewport] = useState({ width: 0, height: 0 })
   const [items, setItems] = useState(() => loadSavedItems())
   const [mapTemplate] = useState(() => loadCompound().map)
   const [passages, setPassages] = useState(() => mapTemplate.passages)
@@ -110,12 +112,31 @@ export default function Builder({ onHome }) {
   const [selectedTrapType, setSelectedTrapType] = useState(DEFAULT_TRAP_TYPE)
   const [savedMessage, setSavedMessage] = useState(false)
   const [notice, setNotice] = useState('')
+  const [toolbarOpen, setToolbarOpen] = useState(false)
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   const selectedItem = items.find((item) => item.id === selectedId)
   const compound = useMemo(() => createCompoundData(items, { ...mapTemplate, passages }), [items, mapTemplate, passages])
   const routeAnalysis = useMemo(() => analyzeCompoundPaths(compound), [compound])
   const spent = spentBudget(items)
   const budget = calculateBuildBudget(items, passages)
   const remaining = budget - spent
+
+  useEffect(() => {
+    const viewport = mapViewportRef.current
+    if (!viewport) return undefined
+    const measure = () => {
+      const { width, height } = viewport.getBoundingClientRect()
+      setMapViewport((current) => Math.abs(current.width - width) < 1 && Math.abs(current.height - height) < 1 ? current : { width, height })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [])
+
+  const availableGridHeight = Math.max(0, mapViewport.height - 36)
+  const fittedGridWidth = Math.max(0, Math.min(mapViewport.width - 24, availableGridHeight * MAP_COLS / MAP_ROWS))
+  const mapFitStyle = { '--map-fit-width': `${fittedGridWidth}px`, '--map-fit-height': `${fittedGridWidth * MAP_ROWS / MAP_COLS}px` }
 
   function handleCellClick(x, y) {
     if (moveId && moveId !== 'choose') {
@@ -208,7 +229,7 @@ export default function Builder({ onHome }) {
     setMoveId(null)
   }
 
-  const toolbar = <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} saveDisabled={!routeAnalysis.reachable} floating={Boolean(selectedItem)} />
+  const toolbar = <BuilderToolbar tool={tool} setTool={setTool} moveId={moveId} setMoveId={setMoveId} selectedItem={selectedItem} selectedTrapType={selectedTrapType} onSelectTrapType={setSelectedTrapType} onChangeTrapType={updateSelectedTrapType} onUpdateTrapSettings={updateSelectedTrapSettings} onToggleTrapVisibility={toggleTrapVisibility} onRemove={removeSelected} onSave={saveCompound} savedMessage={savedMessage} saveDisabled={!routeAnalysis.reachable} open={toolbarOpen} onClose={() => setToolbarOpen(false)} floating={Boolean(selectedItem)} />
   const inspector = selectedItem && <FloatingInspector
     title={selectedItem.type === 'trap' ? selectedItem.name : selectedItem.label}
     eyebrow={selectedItem.type === 'trap' ? 'הגדרות מלכודת' : 'פרטי חדר'}
@@ -218,15 +239,15 @@ export default function Builder({ onHome }) {
   >{toolbar}</FloatingInspector>
 
   return <main className="builder-screen" dir="rtl">
-    <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></header>
+    <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><div className="builder-header-actions"><button type="button" className="builder-tools-toggle" aria-expanded={toolbarOpen} aria-controls="builder-tools" onClick={() => setToolbarOpen((current) => !current)}>כלי בנייה</button><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></div></header>
     <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><div className="budget-card"><span>תקציב בנייה · דינמי</span><b>{remaining}<small> / {budget}</small></b><div className="budget-track"><i style={{ width: `${Math.max(0, remaining / budget * 100)}%` }} /></div><small className="budget-note">{spent} מטבעות נוצלו · התקציב גדל עם השטח הפעיל</small></div></section>
     <WorkspaceFrame className="builder-workspace" inspector={inspector}>
       <section className="builder-layout">
         <div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-          <CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} />
-          <div className="map-panel-foot"><MapLegend /><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
-          <RouteAnalysis analysis={routeAnalysis} />
+          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} /></div>
+          <div className="map-panel-foot"><MapLegend /><span>כניסה אחת נשארת פתוחה בכל עת</span><button type="button" className="map-analysis-toggle" aria-expanded={analysisOpen} onClick={() => setAnalysisOpen((current) => !current)}>{analysisOpen ? 'סגירת ניתוח מסלולים' : 'ניתוח מסלולים'}</button></div>
+          {analysisOpen && <RouteAnalysis analysis={routeAnalysis} />}
         </div>
         {!selectedItem && toolbar}
       </section>
