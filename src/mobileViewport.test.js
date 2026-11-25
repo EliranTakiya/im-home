@@ -8,6 +8,7 @@ test('Builder shares one measured viewport for its coordinates and complete 12 b
   const sizing = await readFile(new URL('./builderMapSizing.js', import.meta.url), 'utf8')
 
   assert.match(component, /new ResizeObserver\(measure\)/)
+  assert.match(component, /window\.addEventListener\('orientationchange', measure/)
   assert.match(component, /calculateBuilderMapGeometry\(mapViewport\.width, mapViewport\.height, MAP_COLS, MAP_ROWS\)/)
   assert.match(sizing, /horizontalChrome = \(columns - 1\) \* cellGap \+ 2 \* \(gridPadding \+ gridBorder\) \+ rowAxisWidth \+ rowAxisGap \+ frameBleed/)
   assert.match(sizing, /verticalChrome = \(rows - 1\) \* cellGap \+ 2 \* \(gridPadding \+ gridBorder\) \+ columnAxisBand \+ entranceBandHeight \+ frameBleed/)
@@ -32,6 +33,10 @@ test('Builder shares one measured viewport for its coordinates and complete 12 b
   assert.match(css, /\.builder-layout\.ih-map-first-layout \.map-fit-viewport \.map-with-rows\{[^}]*direction:rtl/)
   assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns:minmax\(92px,\.38fr\) minmax\(0,5\.8fr\) minmax\(132px,\.62fr\)/)
   assert.match(css, /@media\(orientation:portrait\) and \(max-width:760px\)\{\.builder-layout\.ih-map-first-layout\{grid-template-columns:minmax\(0,1fr\)/)
+  assert.match(css, /@media \(orientation:landscape\) and \(pointer:coarse\) and \(hover:none\)/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns:minmax\(68px,\.28fr\) minmax\(0,5\.8fr\) minmax\(88px,\.36fr\);grid-template-areas:"start map end"\}/)
+  assert.match(css, /\.builder-header-actions \.builder-landscape-budget\{display:grid/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout \.builder-toolbar:not\(\.builder-toolbar-floating\) \.save-button\{position:sticky/)
 })
 
 test('visit journal renders a compact newest-first view while retaining full saved history', async () => {

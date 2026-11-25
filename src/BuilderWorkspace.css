@@ -135,6 +135,7 @@
 .builder-screen{height:100dvh;min-height:0;overflow:hidden;padding-inline-start:max(10px,env(safe-area-inset-right));padding-inline-end:max(10px,env(safe-area-inset-left));padding-block-start:env(safe-area-inset-top);padding-block-end:env(safe-area-inset-bottom)}
 .builder-topbar{flex:0 0 auto;gap:10px}
 .builder-header-actions{display:flex;align-items:center;gap:8px}
+.builder-header-actions>.builder-landscape-budget{display:none}
 .builder-tools-toggle{min-height:38px;padding:0 12px;border:1px solid #d9a55c70;background:#d9a55c12;color:#f0cc8f;font:inherit;font-size:11px;cursor:pointer}
 .builder-tools-toggle[aria-expanded="true"]{background:#d9a55c2a;border-color:#e6b76b}
 .builder-heading{flex:0 0 auto}
@@ -182,3 +183,49 @@
 .builder-layout.ih-map-first-layout .compound-grid .room-name{font-size:clamp(9px,calc(var(--map-cell-size) * .3),15px)}
 .builder-layout.ih-map-first-layout .compound-grid .corridor-mark,.builder-layout.ih-map-first-layout .compound-grid .entrance-mark{font-size:clamp(8px,calc(var(--map-cell-size) * .25),12px)}
 .builder-layout.ih-map-first-layout .compound-grid .trap-hidden-tag{font-size:clamp(6px,calc(var(--map-cell-size) * .18),10px)}
+
+/* Touch-first landscape uses a measured three-zone workspace across phone and tablet viewports. */
+@media (orientation:landscape) and (pointer:coarse) and (hover:none){
+  .builder-screen{height:100vh;height:100dvh;min-height:0;box-sizing:border-box;overflow:hidden;padding-inline-start:max(8px,env(safe-area-inset-right));padding-inline-end:max(8px,env(safe-area-inset-left));padding-block-start:env(safe-area-inset-top);padding-block-end:env(safe-area-inset-bottom)}
+  .builder-topbar{height:clamp(42px,10dvh,54px);min-height:42px;flex:0 0 auto;gap:6px}
+  .builder-brand{min-width:0;gap:5px;font-size:clamp(8px,1.5vw,11px)}
+  .builder-brand>i,.builder-location,.prototype-tag{display:none}
+  .builder-header-actions{min-width:0;flex:0 1 auto;gap:clamp(3px,.7vw,7px)}
+  .builder-header-actions .builder-landscape-budget{display:grid;flex:1 1 100px;width:clamp(92px,20vw,160px);min-width:92px;max-width:160px;grid-template-columns:minmax(0,1fr) auto;gap:1px 4px;padding:3px 5px;align-items:center}
+  .builder-landscape-budget>span{grid-column:1/-1;font-size:7px;line-height:1.1;white-space:nowrap}
+  .builder-landscape-budget>b{display:flex;grid-column:1/-1;justify-content:space-between;gap:4px;font-size:clamp(11px,2vw,14px);line-height:1.1;white-space:nowrap}
+  .builder-landscape-budget>b small{font-size:8px}
+  .builder-landscape-budget .budget-track{grid-column:1/-1;height:3px;margin:1px 0}
+  .builder-landscape-budget .budget-note{display:block;grid-column:1/-1;font-size:6px;line-height:1;white-space:nowrap}
+  .builder-heading{display:none}
+  .builder-heading>.budget-card{display:none}
+  .builder-tools-toggle,.home-button{min-height:31px;flex:0 0 auto;padding-inline:clamp(4px,.8vw,8px);font-size:clamp(8px,1.35vw,10px);white-space:nowrap}
+  .builder-workspace,.builder-workspace>.ih-workspace-canvas{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
+  .builder-layout.ih-map-first-layout{display:grid;flex:1;min-width:0;min-height:0;width:100%;height:100%;gap:clamp(4px,.8vw,8px);grid-template-columns:minmax(68px,.28fr) minmax(0,5.8fr);grid-template-rows:minmax(0,1fr);grid-template-areas:"start map"}
+  .builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(68px,.28fr) minmax(0,5.8fr) minmax(88px,.36fr);grid-template-areas:"start map end"}
+  .builder-layout.ih-map-first-layout .map-panel{width:auto;height:auto;min-width:0;min-height:0;padding:clamp(2px,.5dvh,5px);overflow:hidden}
+  .builder-layout.ih-map-first-layout .map-panel-head{min-height:12px}
+  .builder-layout.ih-map-first-layout .map-panel-head h2{font-size:clamp(8px,1.2vw,11px)}
+  .builder-layout.ih-map-first-layout .map-panel-head h2 small{font-size:7px}
+  .builder-layout.ih-map-first-layout .map-instruction{min-height:7px;padding:0;font-size:7px;line-height:1.1}
+  .builder-layout.ih-map-first-layout .map-panel-foot{min-height:7px;margin:0;padding:0;font-size:6px}
+  .builder-layout.ih-map-first-layout .map-fit-viewport{min-width:0;min-height:0;overflow:visible}
+  .builder-layout.ih-map-first-layout .builder-utility-rail{min-width:0;min-height:0;overflow:auto;gap:clamp(3px,.7dvh,6px);padding:clamp(3px,.7vw,6px)}
+  .builder-layout.ih-map-first-layout .builder-utility-rail .map-legend{gap:clamp(3px,.7dvh,6px)}
+  .builder-layout.ih-map-first-layout .builder-utility-rail .map-legend span{font-size:clamp(6px,.8vw,8px)}
+  .builder-layout.ih-map-first-layout .builder-utility-rail>.route-analysis{min-height:0;overflow:auto}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating){position:relative;inset:auto;display:flex;min-width:0;min-height:0;max-height:100%;width:100%;align-self:stretch;overflow:auto;padding:clamp(4px,.8vw,8px);scrollbar-gutter:stable}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .toolbar-heading{display:flex;gap:3px;margin-bottom:3px}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .toolbar-heading h2{font-size:clamp(8px,1vw,11px)}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .build-option{grid-template-columns:20px minmax(0,1fr);min-height:34px;gap:3px;margin-bottom:3px;padding:3px}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .build-option>strong{grid-column:2;font-size:8px}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .option-icon{width:20px;height:20px;font-size:15px}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .option-copy b{font-size:clamp(7px,.85vw,9px)}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .option-copy small{font-size:6px;line-height:1.15}
+  .builder-layout.ih-map-first-layout .builder-toolbar:not(.builder-toolbar-floating) .save-button{position:sticky;inset-block-end:0;min-height:32px;margin-top:auto;padding:4px 2px;font-size:8px;flex:0 0 auto}
+  .builder-layout.ih-map-first-layout .compound-grid .trap-mark{font-size:clamp(13px,calc(var(--map-cell-size) * .58),36px)}
+  .builder-layout.ih-map-first-layout .compound-grid .room-name{font-size:clamp(8px,calc(var(--map-cell-size) * .32),16px)}
+  .builder-layout.ih-map-first-layout .compound-grid .corridor-mark,.builder-layout.ih-map-first-layout .compound-grid .entrance-mark{font-size:clamp(7px,calc(var(--map-cell-size) * .27),14px)}
+  .builder-footer{min-height:14px;padding-block:1px;font-size:6px}
+  .builder-workspace .ih-workspace-inspector-slot{inset-block:4px;max-height:calc(100% - 8px)}
+}

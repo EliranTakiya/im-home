@@ -11,6 +11,14 @@ function MapLegend() {
   return <div className="map-legend" aria-label="מקרא"><span><i className="legend-room" /> חדר</span><span><i className="legend-corridor" /> מסדרון</span><span><i className="legend-wall" /> קיר</span><span><i className="legend-trap" /> מלכודת</span></div>
 }
 
+function BuilderBudget({ budget, remaining, spent, compact = false }) {
+  return <div className={`budget-card ${compact ? 'builder-landscape-budget' : ''}`} aria-label={`תקציב בנייה: ${remaining} זמינים מתוך ${budget}; ${spent} נוצלו`}>
+    <span>תקציב בנייה · דינמי</span><b>{remaining}<small> / {budget}</small></b>
+    <div className="budget-track"><i style={{ width: `${Math.max(0, remaining / budget * 100)}%` }} /></div>
+    <small className="budget-note">{compact ? `${spent} מטבעות נוצלו` : `${spent} מטבעות נוצלו · התקציב גדל עם השטח הפעיל`}</small>
+  </div>
+}
+
 function CompoundMap({ items, passages, tool, moveId, onCellClick, onItemClick }) {
   const cells = useMemo(() => Array.from({ length: MAP_ROWS * MAP_COLS }, (_, index) => {
     const x = index % MAP_COLS
@@ -130,9 +138,15 @@ export default function Builder({ onHome }) {
       setMapViewport((current) => Math.abs(current.width - width) < 1 && Math.abs(current.height - height) < 1 ? current : { width, height })
     }
     measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(viewport)
-    return () => observer.disconnect()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(viewport)
+    window.addEventListener('resize', measure, { passive: true })
+    window.addEventListener('orientationchange', measure, { passive: true })
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
   }, [])
 
   const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, MAP_COLS, MAP_ROWS)
@@ -254,8 +268,8 @@ export default function Builder({ onHome }) {
   >{toolbar}</FloatingInspector>
 
   return <main className="builder-screen" dir="rtl">
-    <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><div className="builder-header-actions"><button type="button" className="builder-tools-toggle" aria-expanded={toolbarOpen} aria-controls="builder-tools" onClick={() => setToolbarOpen((current) => !current)}>כלי בנייה</button><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></div></header>
-    <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><div className="budget-card"><span>תקציב בנייה · דינמי</span><b>{remaining}<small> / {budget}</small></b><div className="budget-track"><i style={{ width: `${Math.max(0, remaining / budget * 100)}%` }} /></div><small className="budget-note">{spent} מטבעות נוצלו · התקציב גדל עם השטח הפעיל</small></div></section>
+    <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><div className="builder-header-actions"><BuilderBudget budget={budget} remaining={remaining} spent={spent} compact /><button type="button" className="builder-tools-toggle" aria-expanded={toolbarOpen} aria-controls="builder-tools" onClick={() => setToolbarOpen((current) => !current)}>כלי בנייה</button><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></div></header>
+    <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><BuilderBudget budget={budget} remaining={remaining} spent={spent} /></section>
     <WorkspaceFrame className="builder-workspace" inspector={inspector}>
       <MapFirstLayout className={`builder-layout ${toolbarOpen && !selectedItem ? 'tools-open' : ''}`} startRail={utilityRail} endRail={toolbarOpen ? selectedItem ? <div className="builder-tool-rail-placeholder" aria-label="הגדרות הפריט נפתחו בחלונית" /> : toolbar : null} map={<div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
