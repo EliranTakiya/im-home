@@ -15,6 +15,9 @@ test('Builder shares one measured viewport for its coordinates and complete 12 b
   assert.match(css, /\.map-coordinates-side\{grid-template-rows:repeat\(8,minmax\(0,1fr\)\)/)
   assert.match(css, /\.map-panel\{[^}]*overflow:hidden/)
   assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns/)
+  assert.doesNotMatch(css, /\.builder-layout\{display:grid;grid-template-columns:minmax\(0,1fr\)/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns:minmax\(104px,\.72fr\) minmax\(0,3\.15fr\) minmax\(145px,\.92fr\)/)
+  assert.match(css, /@media\(orientation:portrait\) and \(max-width:760px\)\{\.builder-layout\.ih-map-first-layout\{grid-template-columns:minmax\(0,1fr\)/)
 })
 
 test('Builder tool selection remains available until manually closed and route analysis uses a fixed utility zone', async () => {
@@ -50,7 +53,9 @@ test('fixed landscape game layout fits VisitGame map and keeps the movement pad 
   const css = await readFile(new URL('./VisitGameShell.css', import.meta.url), 'utf8')
   assert.match(css, /@media \(orientation:landscape\) and \(max-height:600px\)/)
   assert.match(css, /\.visit-shell\{display:flex;flex-direction:column;width:100%;height:100dvh/)
-  assert.match(css, /\.visit-world-panel\{display:grid;grid-template-rows:auto auto auto minmax\(0,1fr\)/)
-  assert.match(css, /\.visit-map-stage>\.visit-map-wrap\{grid-column:1;grid-row:1\/3/)
-  assert.match(css, /\.visit-map-stage>\.visit-floating-controls\{grid-column:2;grid-row:2/)
+  assert.match(css, /\.visit-world-panel>\.visit-map-stage\.ih-map-first-layout\{flex:1 1 0;[^}]*grid-template-rows:minmax\(0,1fr\)/)
+  assert.match(css, /\.visit-map-stage\.ih-map-first-layout>\.ih-map-first-map/)
+  assert.doesNotMatch(css, /\.visit-world-panel\{display:grid;grid-template-rows/)
+  assert.doesNotMatch(css, /\.visit-map-stage>\.visit-map-wrap\{/)
+  assert.doesNotMatch(css, /\.visit-map-stage>\.visit-floating-controls\{/)
 })

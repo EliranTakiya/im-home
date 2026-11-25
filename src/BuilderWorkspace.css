@@ -3,7 +3,7 @@
 .builder-heading{padding-block:18px 14px}
 .builder-workspace{position:relative;flex:1;min-height:0;overflow:visible}
 .builder-workspace>.ih-workspace-canvas{min-height:0;overflow:visible}
-.builder-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0;min-height:0;align-items:stretch}
+.builder-layout{display:grid;gap:0;min-height:0;align-items:stretch}
 .map-panel{min-width:0;overflow:auto;overscroll-behavior:contain;padding:16px clamp(14px,2vw,30px)}
 .map-frame{width:min(100%,960px);min-width:720px;margin:14px auto;padding-inline:8px}
 .compound-grid{width:100%;min-width:700px;max-height:none;grid-template-rows:repeat(var(--rows),minmax(44px,1fr))}
@@ -87,6 +87,11 @@
 .route-analysis-close{min-height:32px;padding:4px 7px;border:1px solid #d9a55c66;border-radius:4px;background:#d9a55c12;color:#e8c991;font:inherit;font-size:8px;cursor:pointer}
 @media(orientation:portrait) and (max-width:760px){.builder-utility-rail>.route-analysis{position:absolute;z-index:30;inset:0;display:flex;flex-direction:column;max-height:none;margin:0;padding:12px;border:1px solid #d9a55c70;border-radius:8px;background:#11130ff7;box-shadow:0 12px 40px #0009}.builder-utility-rail>.route-analysis .route-analysis-stats{gap:6px 12px}}
 
+/* Keep the declared template areas and their tracks in lockstep at every breakpoint. */
+.builder-layout.ih-map-first-layout{display:grid;grid-template-columns:minmax(104px,.72fr) minmax(0,3.7fr)}
+.builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(104px,.72fr) minmax(0,3.15fr) minmax(145px,.92fr)}
+@media(orientation:portrait) and (max-width:760px){.builder-layout.ih-map-first-layout{grid-template-columns:minmax(0,1fr)}.builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(0,1fr)}}
+
 /* Landscape tools occupy a real column; the map remeasures instead of sitting behind a drawer. */
 @media (orientation:landscape) and (max-height:600px){
   .builder-screen{height:100dvh;min-height:0;padding-block:env(safe-area-inset-top) env(safe-area-inset-bottom);gap:0}
@@ -96,8 +101,8 @@
   .builder-heading{display:none}
   .builder-workspace{display:flex;flex:1;min-height:0;overflow:hidden}
   .builder-workspace>.ih-workspace-canvas{display:flex;flex:1;min-height:0;overflow:hidden}
-  .builder-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0;flex:1;min-height:0}
-  .builder-layout.tools-open{grid-template-columns:minmax(0,1fr) minmax(185px, min(24vw,245px));gap:8px}
+  .builder-layout{display:grid;gap:0;flex:1;min-height:0}
+  .builder-layout.tools-open{gap:8px}
   .map-panel{height:100%;padding:3px 6px;overflow:hidden}
   .map-panel-head{min-height:24px}.map-panel-head h2{font-size:11px}.map-panel-head h2 small{font-size:8px}
   .map-instruction{min-height:16px;padding:2px 0;font-size:8px}
