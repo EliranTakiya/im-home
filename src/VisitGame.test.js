@@ -5,11 +5,12 @@ import { readFile } from 'node:fs/promises'
 const source = await readFile(new URL('./VisitGame.jsx', import.meta.url), 'utf8')
 const styles = await readFile(new URL('./VisitGame.css', import.meta.url), 'utf8')
 const shellStyles = await readFile(new URL('./VisitGameShell.css', import.meta.url), 'utf8')
+const sharedShellStyles = await readFile(new URL('./GameShell.css', import.meta.url), 'utf8')
 const builderSource = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
 const builderStyles = await readFile(new URL('./Builder.css', import.meta.url), 'utf8')
 
 test('floating direction controls sit next to the map and expose current facing', () => {
-  assert.match(source, /className="visit-map-stage">\s*<VisitMap[\s\S]*?<DirectionPad[^>]+facing=\{guest\.facing/)
+  assert.match(source, /<MapFirstLayout className="visit-map-stage" startRail=\{[\s\S]*?map=\{<VisitMap[\s\S]*?endRail=\{<div className="visit-control-rail">[\s\S]*?<DirectionPad[^>]+facing=\{guest\.facing/)
   assert.match(source, /מבט \{facingLabels\[facing\]/)
   assert.match(source, /facingRotationDegrees\(visit\.guest\.facing \?\? 'north'\)/)
   assert.match(source, /className="visit-compass-hint"/)
@@ -24,7 +25,11 @@ test('keyboard and button movement share commands and immediately stop automatic
 })
 
 test('control layout adapts for desktop, mobile, and short screens without covering the map', () => {
-  assert.match(styles, /\.visit-map-stage\s*\{[^}]*grid-template-columns:minmax\(0,1fr\) clamp\(/)
+  assert.match(source, /import \{[^}]*MapFirstLayout[^}]*\} from '\.\/GameShell\.jsx'/)
+  assert.match(sharedShellStyles, /\.ih-map-first-layout\{[^}]*grid-template-areas:"start map end"/)
+  assert.match(sharedShellStyles, /grid-template-areas:"map" "start" "end"/)
+  assert.match(shellStyles, /\.visit-map-stage\.ih-map-first-layout\{flex:1;min-height:0/)
+  assert.match(shellStyles, /\.visit-map-stage\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns/)
   assert.match(styles, /@media\(max-width:1000px\)[\s\S]*?\.visit-layout\{grid-template-columns:minmax\(0,1fr\)\}/)
   assert.match(styles, /@media\(max-width:760px\)[\s\S]*?\.visit-map-stage\{grid-template-columns:minmax\(0,1fr\)/)
   assert.match(styles, /@media\(max-width:420px\)/)
@@ -70,8 +75,10 @@ test('visit inspectors float over a single-column workspace without overriding t
   assert.match(source, /<FloatingInspector title="נתוני ביקור ויכולות"/)
   assert.match(source, /<MessageLayer messages=\{perkNotice/)
   assert.match(shellStyles, /\.visit-layout\{grid-template-columns:minmax\(0,1fr\)/)
+  assert.match(source, /startRail=\{<div className="visit-action-rail">/)
+  assert.match(source, /endRail=\{<div className="visit-control-rail">/)
   assert.match(shellStyles, /\.visit-details-inspector,\.visit-equipment-inspector\{position:fixed/)
-  assert.match(shellStyles, /@media\(max-width:760px\) and \(orientation:landscape\)/)
+  assert.match(shellStyles, /@media\(orientation:landscape\) and \(max-height:650px\)/)
   assert.doesNotMatch(shellStyles, /\.visit-map\s*\{|\.visit-tile(?:\.[\w-]+)?\s*\{/)
 })
 
@@ -97,7 +104,7 @@ test('Dark Neon Adventure effects are scoped, responsive, non-interactive, and r
   assert.match(styles, /@media\(prefers-reduced-motion:reduce\)[\s\S]*?\.visit-guest\{transition:none\}/)
   assert.match(styles, /@media\(max-width:760px\)/)
   assert.match(styles, /@media\(max-width:380px\)/)
-  assert.match(styles, /@media\(max-width:760px\) and \(orientation:landscape\)/)
+  assert.match(shellStyles, /@media\(orientation:portrait\) and \(max-width:760px\)/)
 })
 
 test('builder and visit use the same row-major coordinates and left-to-right map orientation', () => {

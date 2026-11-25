@@ -76,6 +76,7 @@
 /* Keep the established 12×8 tile artwork and grid; size only the map viewport for this layout. */
 @media (orientation:landscape) and (max-height:600px){.visit-map{width:100%;height:100%;max-height:none;grid-template-rows:repeat(var(--map-rows),minmax(0,1fr))}}
 @media (orientation:portrait) and (max-width:760px){.visit-map{width:100%;height:100%;max-height:none;grid-template-rows:repeat(var(--map-rows),minmax(0,1fr))}}
+.visit-map-stage .ih-map-first-map .visit-map{width:100%;height:100%;max-height:none;grid-template-rows:repeat(var(--map-rows),minmax(0,1fr))}
 
 /* Dark Neon Adventure: visual-only skin for the visit screen. */
 .visit-shell{--visit-bg:#172435;--visit-teal:#19c7c2;--visit-green:#78d957;--visit-danger:#ff7048;--visit-purple:#a78bfa;--visit-gold:#f5c451;color:#e8f1f1;background:radial-gradient(ellipse at 16% 5%,#17394b99,transparent 38%),radial-gradient(ellipse at 90% 25%,#49274a55,transparent 36%),linear-gradient(145deg,#101b29,#111923 56%,#17172a);min-height:100dvh}

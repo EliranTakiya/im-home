@@ -11,7 +11,7 @@ import { applySelectedPerkEffect, hasNearbyTrapWarning, hostPerkAvailability } f
 import { createGuardianState, evaluateGuardian, guardianAllowedForVisit, humanOwnerCanAct, GUARDIAN_DIFFICULTIES } from './guardianAI.js'
 import { elapsedGameplayMs, formatGameplayTime, pauseGameplayTimer, resumeGameplayTimer } from './gameTimer.js'
 import { createVisitTrapPlacement, legalVisitTrapTiles } from './trapPlacement.js'
-import { ActionFooter, FloatingInspector, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
+import { ActionFooter, FloatingInspector, MapFirstLayout, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
 import './VisitGame.css'
 import './VisitGameShell.css'
 
@@ -388,29 +388,29 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
         <div className="visit-panel-heading"><div><span>{challengeHouse ? `${challengeHouse.name} · בית אתגר` : `אורח #${visit.id.slice(-5)}`}</span><h2>{challengeHouse?.title ?? 'מבט על המתחם'}</h2></div><span className={`visit-live ${terminal ? 'visit-ended' : ''}`}><i /> {status}</span></div>
         <div className="visit-hud" aria-label="מצב משחק">
           <div className={`visit-hud-item visit-hud-health ${latestDamage ? 'visit-hud-damaged' : ''}`}><span>חיים</span><b key={`health-${guest.health}-${guest.turns}`}>{guest.health}</b></div>
-          <div className="visit-hud-item visit-hud-damage"><span>נזק</span><b>{guest.damageTaken}</b></div>
           <div className="visit-hud-item visit-hud-energy"><span>אנרגיה</span><b>{visit.spectator?.energy ?? 0}/{visit.spectator?.maxEnergy ?? 0}</b></div>
           <div className="visit-hud-item visit-hud-steps"><span>צעדים נותרו</span><b>{Math.max(0, visit.stepBudget - guest.stepsTaken)}</b></div>
           <div className="visit-hud-item visit-hud-time"><span>זמן משחק</span><b>{gameplayTime}</b></div>
-          <button className="visit-hud-item visit-hud-bag" aria-expanded={equipmentOpen} onClick={() => setEquipmentOpen((open) => !open)}><span>תיק</span><b>{availableToolCount}/{totalToolCount}</b></button>
-          <div className="visit-hud-item"><span>מבט</span><b>{({ north: 'צפון', east: 'מזרח', south: 'דרום', west: 'מערב' })[guest.facing ?? 'north']}</b></div>
-          <div className="visit-hud-item visit-hud-auto"><span>צעידה</span><b>{auto ? 'אוטומטית' : 'ידנית'}</b></div>
           <div className="visit-hud-item visit-hud-score"><span>ניקוד</span><b key={score.total}>{score.total}</b></div>
-          <div className="visit-hud-item visit-hud-role"><span>תפקיד</span><b>{visit.ownerMode === 'human' ? 'בעלים · מארח' : 'אורח'}</b></div>
         </div>
         {equipmentOpen && <FloatingInspector title="תיק הציוד" eyebrow="ציוד אורח" onClose={() => setEquipmentOpen(false)} className="visit-equipment-inspector">
           <div className="visit-hud-equipment-popover" role="region" aria-label="תיק הכלים">
           {totalToolCount ? Object.values(visit.equipment.tools).map((tool) => <div className="visit-popover-tool" key={tool.id}><span>{({ 'insulated-gloves': '⚡', 'gas-mask': '◉', 'floor-kit': '▱', 'door-kit': '🔧' })[tool.id] ?? '🔧'} {EQUIPMENT_CATALOG[tool.id]?.name ?? tool.id}</span><b>{tool.usesRemaining} שימושים</b></div>) : <small>אין כלים בתיק הביקור.</small>}
           </div>
         </FloatingInspector>}
-        <div className="visit-hud-actions">
-          {terminal
-            ? <button className="visit-hud-step" onClick={() => { stopAutoMovement(); onRestart() }}>התחילו ביקור חדש</button>
-            : <><button className="visit-hud-step" disabled={Boolean(visit.pendingAction)} onClick={() => setVisit((current) => advanceVisit(activeCompound, current))}>התקדם צעד</button><button className="visit-hud-auto-button" disabled={Boolean(visit.pendingAction)} aria-pressed={auto} onClick={toggleAutoMovement}>{auto ? 'עצור הליכה אוטומטית' : 'הליכה אוטומטית'}</button></>}
-          <button className="visit-hud-inspector-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>נתוני ביקור ויכולות</button>
-        </div>
-        <div className="visit-map-stage">
-          <VisitMap compound={activeCompound} visit={visit} decor={challengeHouse?.decor ?? []} material={challengeHouse?.theme?.grain} guardian={challengeHouse && visit.ownerMode === 'ai' ? visit.guardian : null} ownerView={!challengeHouse && visit.ownerMode === 'human'} />
+        <MapFirstLayout className="visit-map-stage" startRail={<div className="visit-action-rail">
+          <div className="visit-secondary-status"><span>נזק <b>{guest.damageTaken}</b></span><span>כיוון <b>{({ north: 'צפון', east: 'מזרח', south: 'דרום', west: 'מערב' })[guest.facing ?? 'north']}</b></span><span>תנועה <b>{auto ? 'אוטומטית' : 'ידנית'}</b></span><span>תפקיד <b>{visit.ownerMode === 'human' ? 'מארח' : 'אורח'}</b></span></div>
+          <button className="visit-equipment-toggle" aria-expanded={equipmentOpen} onClick={() => setEquipmentOpen((open) => !open)}>ציוד · {availableToolCount}/{totalToolCount}</button>
+          <div className="visit-hud-actions">
+            {terminal
+              ? <button className="visit-hud-step" onClick={() => { stopAutoMovement(); onRestart() }}>התחילו ביקור חדש</button>
+              : <><button className="visit-hud-step" disabled={Boolean(visit.pendingAction)} onClick={() => setVisit((current) => advanceVisit(activeCompound, current))}>התקדם צעד</button><button className="visit-hud-auto-button" disabled={Boolean(visit.pendingAction)} aria-pressed={auto} onClick={toggleAutoMovement}>{auto ? 'עצור הליכה אוטומטית' : 'הליכה אוטומטית'}</button></>}
+            <button className="visit-hud-inspector-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>נתוני ביקור ויכולות</button>
+          </div>
+          {nearbyTrapWarning && <div className="visit-perk-warning" role="status"><b>סכנה בקרבת מקום</b><span>Trap Warning מזהה מלכודת בטווח, בלי לחשוף את מיקומה.</span></div>}
+          <MessageLayer messages={perkNotice ? [{ id: 'visit-perk-notice', text: perkNotice, type: 'status' }] : []} className="visit-perk-message-layer">{perkNotice && <button type="button" className="visit-message-dismiss" onClick={() => setPerkNotice('')} aria-label="סגירת הודעה">×</button>}</MessageLayer>
+          <div className="visit-legend"><span><i className="legend-guest" /> אורח</span><span><i className="legend-trap" /> מלכודת ידועה</span><span><i className="legend-gas" /> אזור גז</span></div>
+        </div>} map={<VisitMap compound={activeCompound} visit={visit} decor={challengeHouse?.decor ?? []} material={challengeHouse?.theme?.grain} guardian={challengeHouse && visit.ownerMode === 'ai' ? visit.guardian : null} ownerView={!challengeHouse && visit.ownerMode === 'human'} />} endRail={<div className="visit-control-rail">
           {challengeHouse ? <section className="guardian-status-panel" aria-label="שומר הבית של אתגר המחשב">
             <div><span className="guardian-status-icon" aria-hidden="true">◆</span><div><b>בעל הבית: מחשב</b><small>{({ waiting: 'ממתין להזדמנות', present: 'נמצא במתחם', absent: 'לא יופיע בביקור הזה', retreated: 'נסוג מהמתחם' })[visit.guardian?.phase] ?? 'פעיל'}</small></div></div>
             <span className="guardian-locked-difficulty" aria-label="רמת קושי נעולה">{GUARDIAN_DIFFICULTIES[visit.guardian?.difficulty ?? 'normal']?.label ?? 'רגיל'} · קושי נעול</span>
@@ -418,11 +418,8 @@ export default function VisitGame({ compound, initialVisit, onHome, onRestart, i
             <div><span className="guardian-status-icon" aria-hidden="true">⌂</span><div><b>{visit.ownerMode === 'human' ? 'בעל המתחם משתתף' : 'המתחם ללא שמירה אנושית'}</b><small>{visit.ownerMode === 'human' ? 'הבעלים מחובר ושולט ב־Host Perks.' : 'לא הופעל AI Guardian; הביקור מתנהל ללא בעלים.'}</small></div></div>
             <button className="owner-participation-toggle" disabled={terminal || visit.visitType === 'player-house'} onClick={() => setVisit((current) => current.visitType === 'regular' ? ({ ...current, ownerMode: current.ownerMode === 'human' ? 'absent' : 'human' }) : current)}>{visit.ownerMode === 'human' ? 'הבעלים עזב' : visit.visitType === 'player-house' ? 'הרשאות הבעלים אינן זמינות לאורח' : 'בעל הבית מצטרף'}</button>
           </section>}
-          <MessageLayer messages={perkNotice ? [{ id: 'visit-perk-notice', text: perkNotice, type: 'status' }] : []} className="visit-perk-message-layer">{perkNotice && <button type="button" className="visit-message-dismiss" onClick={() => setPerkNotice('')} aria-label="סגירת הודעה">×</button>}</MessageLayer>
           <DirectionPad disabled={terminal || Boolean(visit.pendingAction)} facing={guest.facing ?? 'north'} onMove={moveGuest} />
-        </div>
-        {nearbyTrapWarning && <div className="visit-perk-warning" role="status"><b>סכנה בקרבת מקום</b><span>Trap Warning מזהה מלכודת בטווח, בלי לחשוף את מיקומה.</span></div>}
-        <div className="visit-legend"><span><i className="legend-guest" /> אורח</span><span><i className="legend-trap" /> מלכודת ידועה</span><span><i className="legend-gas" /> אזור גז</span></div>
+        </div>} />
       </div>
       </section>
       {detailsOpen && <FloatingInspector title="נתוני ביקור ויכולות" eyebrow="מצב משחק" onClose={() => setDetailsOpen(false)} className="visit-details-inspector" footer={<ActionFooter className="visit-inspector-footer"><button type="button" onClick={() => setDetailsOpen(false)}>חזרה למשחק</button></ActionFooter>}><aside className="visit-side-panel">

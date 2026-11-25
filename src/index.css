@@ -19,8 +19,9 @@
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; scroll-behavior: smooth; }
-body { min-width: 320px; min-height: 100vh; margin: 0; }
+html { width: 100%; height: 100%; min-width: 320px; min-height: 0; overflow: hidden; overscroll-behavior: none; scroll-behavior: auto; }
+body { width: 100%; height: 100dvh; min-width: 320px; min-height: 0; margin: 0; overflow: hidden; overscroll-behavior: none; }
+#root { width: 100%; height: 100%; min-height: 0; overflow: hidden; isolation: isolate; }
 body, button, a { font-family: 'Heebo', Arial, sans-serif; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }

@@ -12,6 +12,21 @@ export function WorkspaceFrame({ children, inspector, footer, className = '', ..
   </section>
 }
 
+export function MapFirstLayout({ map, startRail, endRail, topBar, className = '', ...props }) {
+  const layoutClasses = [
+    'ih-map-first-layout',
+    startRail ? 'has-start-rail' : '',
+    endRail ? 'has-end-rail' : '',
+    className,
+  ].filter(Boolean).join(' ')
+  return <section className={layoutClasses} {...props}>
+    {topBar && <header className="ih-map-first-topbar">{topBar}</header>}
+    {startRail && <aside className="ih-map-first-rail ih-map-first-start">{startRail}</aside>}
+    <div className="ih-map-first-map">{map}</div>
+    {endRail && <aside className="ih-map-first-rail ih-map-first-end">{endRail}</aside>}
+  </section>
+}
+
 export function FloatingInspector({ title, eyebrow, onClose, children, footer, className = '', ...props }) {
   return <aside className={`ih-floating-inspector ${className}`.trim()} aria-label={title} {...props}>
     <header className="ih-inspector-header"><div>{eyebrow && <small>{eyebrow}</small>}<h2>{title}</h2></div>{onClose && <button type="button" className="ih-inspector-close" onClick={onClose} aria-label="סגירה">×</button>}</header>

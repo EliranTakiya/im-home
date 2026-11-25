@@ -1,4 +1,36 @@
 /* Shared presentation layer for setup, selection, history, and result screens. */
+.preparation-game-shell{display:flex;width:100%;height:100dvh;min-height:0;overflow:hidden;overscroll-behavior:none}
+.preparation-game-shell>main{width:100%;min-width:0;min-height:0}
+.preparation-game-shell .challenge-preparation{display:flex;flex-direction:column;height:100%;min-height:0;padding-bottom:env(safe-area-inset-bottom);overflow:hidden}
+.preparation-game-shell .preparation-header{width:100%;min-height:72px;flex:0 0 auto}
+.preparation-game-shell .challenge-preparation>section{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.preparation-game-shell .challenge-preparation>.ih-action-footer{position:sticky;z-index:5;inset-block-end:0;flex:0 0 auto;min-height:54px;margin-top:0;padding-block:7px calc(7px + env(safe-area-inset-bottom))}
+.preparation-game-shell .difficulty-options{margin-block:clamp(10px,2vh,22px)}
+.preparation-game-shell .perk-selection-shell{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;padding-bottom:env(safe-area-inset-bottom);overflow:hidden}
+.preparation-game-shell .perk-selection-header{min-height:60px;flex:0 0 auto}
+.preparation-game-shell .perk-selection-layout{display:grid;flex:1;min-height:0;overflow:hidden;margin-block:8px 0}
+.preparation-game-shell .perk-list-panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.preparation-game-shell .perk-list-heading{flex:0 0 auto}
+.preparation-game-shell .perk-cards{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:2px 4px 4px}
+.preparation-game-shell .perk-selection-actions{position:sticky;z-index:5;inset-block-end:0;flex:0 0 auto;min-height:52px;margin:5px -12px -12px;padding:6px 12px calc(6px + env(safe-area-inset-bottom))}
+.preparation-game-shell .perk-selection-footnote{flex:0 0 auto;margin:4px auto 0}
+.preparation-game-shell .equipment-selection{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;padding:clamp(8px,1.5vh,16px) clamp(10px,2vw,24px) 0}
+.preparation-game-shell .equipment-selection>header{min-height:52px;flex:0 0 auto;padding-bottom:6px}
+.preparation-game-shell .equipment-selection h1{font-size:clamp(17px,2vw,26px)}
+.preparation-game-shell .equipment-intro{flex:0 0 auto;margin:5px 0;font-size:9px;line-height:1.4}
+.preparation-game-shell .equipment-families{flex:0 0 auto;margin-block:4px}
+.preparation-game-shell .equipment-grid{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;align-content:start;gap:8px;padding:3px 2px}
+.preparation-game-shell .equipment-card{padding:clamp(8px,1vw,14px);border-radius:8px}
+.preparation-game-shell .equipment-card h2{margin:6px 0 2px;font-size:15px}
+.preparation-game-shell .equipment-card p{min-height:0;margin:0;font-size:9px;line-height:1.4}
+.preparation-game-shell .equipment-card dl{margin:4px 0 6px;font-size:9px}
+.preparation-game-shell .equipment-card dl div{padding:4px 0}
+.preparation-game-shell .equipment-card>button{min-height:34px;padding:5px 8px;font-size:9px}
+.preparation-game-shell .equipment-selection>.ih-action-footer{position:sticky;z-index:5;inset-block-end:0;flex:0 0 auto;min-height:48px;margin:0;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+.preparation-game-shell .equipment-selection>.ih-action-footer>span{font-size:8px}
+.preparation-game-shell .equipment-selection>.ih-action-footer>button{min-height:36px;padding:6px 9px;font-size:9px}
+@media(orientation:landscape) and (max-height:600px){.preparation-game-shell .preparation-header{min-height:46px}.preparation-game-shell .preparation-header h1{font-size:16px}.preparation-game-shell .preparation-header>button{min-height:30px;padding:4px 8px;font-size:8px}.preparation-game-shell .difficulty-options{gap:8px;margin-block:8px}.preparation-game-shell .difficulty-option{min-height:0;padding:10px}.preparation-game-shell .difficulty-option>b{margin-top:4px;font-size:16px}.preparation-game-shell .difficulty-option>p{min-height:0;margin-block:4px;font-size:9px}.preparation-game-shell .perk-selection-header{min-height:42px}.preparation-game-shell .perk-selection-header h1{font-size:16px}.preparation-game-shell .perk-selection-layout{grid-template-columns:minmax(150px,210px) minmax(0,1fr);gap:7px}.preparation-game-shell .perk-role-tabs button{min-height:46px;padding:5px 7px}.preparation-game-shell .perk-list-panel{padding:8px}.preparation-game-shell .perk-list-heading{padding-bottom:5px}.preparation-game-shell .perk-list-heading h2{font-size:13px}.preparation-game-shell .perk-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:5px;margin-top:5px}.preparation-game-shell .perk-card{grid-template-columns:28px minmax(0,1fr) auto;gap:5px;padding:6px}.preparation-game-shell .perk-card-icon{width:25px;height:25px;font-size:15px}.preparation-game-shell .perk-card-copy h3{margin:1px 0;font-size:10px}.preparation-game-shell .perk-card-copy p,.preparation-game-shell .perk-card-copy small{font-size:8px}.preparation-game-shell .perk-selection-footnote{display:none}.preparation-game-shell .equipment-selection{padding-top:4px}.preparation-game-shell .equipment-selection>header{min-height:42px}.preparation-game-shell .equipment-intro{display:none}.preparation-game-shell .equipment-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.preparation-game-shell .equipment-selection>.ih-action-footer{min-height:38px}}
+@media(orientation:portrait) and (max-width:760px){.preparation-game-shell .perk-selection-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:5px}.preparation-game-shell .perk-role-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.preparation-game-shell .perk-role-tabs button{min-height:42px;padding:5px}.preparation-game-shell .perk-role-tabs button small{display:none}.preparation-game-shell .perk-list-panel{padding:7px}.preparation-game-shell .perk-selection-header{min-height:50px}.preparation-game-shell .perk-cap{display:none}.preparation-game-shell .perk-selection-footnote{display:none}.preparation-game-shell .equipment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.preparation-game-shell .equipment-selection>header{min-height:48px}.preparation-game-shell .equipment-selection footer>span{display:none}}
 .preparation-game-shell{--prep-gold:#d2a45f;--prep-bronze:#906b42;min-height:100dvh;background:radial-gradient(ellipse at 78% 0,#4a351d24,transparent 39%),linear-gradient(145deg,#121311,#090a09 72%)}
 .preparation-game-shell button{touch-action:manipulation}
 .preparation-game-shell button:focus-visible{outline:2px solid var(--prep-gold,#d2a45f);outline-offset:2px}

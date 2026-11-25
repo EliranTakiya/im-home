@@ -2,30 +2,34 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-test('Builder measures its map viewport and scales the whole 12 by 8 board without making it scrollable', async () => {
+test('Builder shares one measured viewport for its coordinates and complete 12 by 8 board', async () => {
   const component = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('./BuilderWorkspace.css', import.meta.url), 'utf8')
 
   assert.match(component, /new ResizeObserver\(measure\)/)
   assert.match(component, /availableGridHeight \* MAP_COLS \/ MAP_ROWS/)
   assert.match(component, /className="map-fit-viewport" ref=\{mapViewportRef\}/)
-  assert.match(css, /\.map-fit-viewport \.compound-grid\{[^}]*min-width:0;[^}]*max-width:100%/)
+  assert.match(component, /<MapFirstLayout className=\{`builder-layout/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout \.map-fit-viewport \.compound-grid\{[^}]*aspect-ratio:12\/8/)
+  assert.match(css, /\.map-coordinates-top[^}]*grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/)
+  assert.match(css, /\.map-coordinates-side\{grid-template-rows:repeat\(8,minmax\(0,1fr\)\)/)
   assert.match(css, /\.map-panel\{[^}]*overflow:hidden/)
-  assert.match(css, /@media\(max-height:520px\) and \(orientation:landscape\)/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout\.has-start-rail\.has-end-rail\{grid-template-columns/)
 })
 
-test('Builder tools stay hidden by default and occupy a measured side column when opened in landscape', async () => {
+test('Builder tool selection remains available until manually closed and route analysis uses a fixed utility zone', async () => {
   const component = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('./BuilderWorkspace.css', import.meta.url), 'utf8')
 
   assert.match(component, /aria-controls="builder-tools"/)
   assert.match(component, /open \? 'toolbar-open'/)
   assert.match(component, /aria-expanded=\{analysisOpen\}/)
-  assert.match(css, /\.builder-toolbar:not\(\.builder-toolbar-floating\)\{display:none\}/)
-  assert.match(css, /\.builder-toolbar:not\(\.builder-toolbar-floating\)\.toolbar-open\{position:fixed/)
-  assert.match(css, /\.builder-layout\.tools-open\{grid-template-columns:minmax\(0,1fr\) minmax\(185px/)
-  assert.match(css, /\.builder-toolbar:not\(\.builder-toolbar-floating\)\.toolbar-open\{position:relative/)
-  assert.match(css, /\.map-panel>\.route-analysis\{[^}]*overflow:auto/)
+  assert.doesNotMatch(component, /setTool\(tool === 'trap' \? null : 'trap'\); setMoveId\(null\); if \(!floating\) onClose/)
+  assert.match(component, /onClick=\{\(\) => onSelectTrapType\(definition\.id\)\}/)
+  assert.match(component, /<RouteAnalysis analysis=\{routeAnalysis\} onClose=\{\(\) => setAnalysisOpen\(false\)\} \/>/)
+  assert.match(css, /\.builder-layout\.ih-map-first-layout \.builder-toolbar:not\(\.builder-toolbar-floating\)\{position:relative/)
+  assert.match(css, /\.builder-utility-rail>\.route-analysis\{position:relative/)
+  assert.match(css, /\.builder-utility-rail>\.route-analysis\{position:absolute;z-index:30;inset:0/)
 })
 
 test('startup readiness waits for initialization, artwork, and the five-second minimum without restarting orientation UI on internal screens', async () => {
