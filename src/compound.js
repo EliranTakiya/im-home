@@ -1,9 +1,11 @@
 import { createTrapData, DEFAULT_TRAP_TYPE, normalizeTrapData, TRAP_TYPES } from './traps.js'
 
-export const MAP_COLS = 16
-export const MAP_ROWS = 10
+export const MAP_COLS = 20
+export const MAP_ROWS = 12
 export const LEGACY_MAP_COLS = 12
 export const LEGACY_MAP_ROWS = 8
+export const PREVIOUS_MAP_COLS = 16
+export const PREVIOUS_MAP_ROWS = 10
 export const BUILD_BUDGET = 1000
 export const AREA_BUDGET_BONUS = 10
 export const ROOM_COST = 240
@@ -13,23 +15,25 @@ export const COMPOUND_STORAGE_KEY = 'im-home-compound'
 export const LEGACY_COMPOUND_STORAGE_KEY = 'im-home-compound-v1'
 
 export const STARTER_ITEMS = [
-  { id: 'room-start', type: 'room', x: 2, y: 1, w: 3, h: 2, label: 'חדר מרכזי', free: true },
-  { id: 'room-store', type: 'room', x: 7, y: 1, w: 2, h: 2, label: 'מחסן', free: true },
+  { id: 'room-start', type: 'room', x: 4, y: 3, w: 3, h: 2, label: 'חדר מרכזי', free: true },
+  { id: 'room-store', type: 'room', x: 9, y: 3, w: 2, h: 2, label: 'מחסן', free: true },
 ]
 
 function createBaseMap(rooms = [], width = MAP_COLS, height = MAP_ROWS) {
+  const entranceX = Math.floor(width / 2) - 3
+  const crossY = height - 6
   return {
     width,
     height,
     rooms,
     passages: [
-      { id: 'main-cross-passage', x: 0, y: 4, width, height: 1 },
-      { id: 'upper-gallery', x: 0, y: 3, width, height: 1 },
-      { id: 'entrance-passage', x: 5, y: 5, width: 1, height: Math.max(1, height - 6) },
+      { id: 'main-cross-passage', x: 0, y: crossY, width, height: 1 },
+      { id: 'upper-gallery', x: 0, y: crossY - 1, width, height: 1 },
+      { id: 'entrance-passage', x: entranceX, y: crossY + 1, width: 1, height: Math.max(1, height - crossY - 2) },
     ],
     walls: [],
-    entrances: [{ id: 'main-entrance', x: 5, y: height - 1 }],
-    exits: [{ id: 'main-exit', x: 5, y: height - 1 }],
+    entrances: [{ id: 'main-entrance', x: entranceX, y: height - 1 }],
+    exits: [{ id: 'main-exit', x: entranceX, y: height - 1 }],
   }
 }
 
@@ -62,8 +66,8 @@ function mapDimensions(map) { return { width: map?.width ?? MAP_COLS, height: ma
 
 export function canReachEntrance(items, map = null) {
   const { width, height } = mapDimensions(map)
-  const entrancePoint = map?.entrances?.[0] ?? map?.exits?.[0] ?? { x: 5, y: height - 1 }
-  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
+  const entrancePoint = map?.entrances?.[0] ?? map?.exits?.[0] ?? { x: Math.floor(width / 2) - 3, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? height - 6
   const blocked = (x, y) => items.some((item) => x >= item.x && x < item.x + item.w && y >= item.y && y < item.y + item.h)
   const entrance = entrancePoint
   if (blocked(entrance.x, entrance.y)) return false
@@ -104,20 +108,22 @@ function isValidMap(map) {
   if (!map || !Number.isInteger(map.width) || !Number.isInteger(map.height) || map.width < LEGACY_MAP_COLS || map.height < LEGACY_MAP_ROWS) return false
   const { width, height } = map
   if (!Array.isArray(map.rooms) || !Array.isArray(map.passages) || !Array.isArray(map.entrances) || !Array.isArray(map.exits)) return false
-  const entrance = map.entrances.some((point) => point?.x === 5 && point?.y === height - 1)
-  const exit = map.exits.some((point) => point?.x === 5 && point?.y === height - 1)
-  const cross = map.passages.some((passage) => passage?.x === 0 && passage?.y === 4 && passage?.width === width && passage?.height === 1)
-  const entrancePassage = map.passages.some((passage) => passage?.x === 5 && passage?.y === 5 && passage?.width === 1 && passage?.height === height - 6)
+  const entrancePoint = map.entrances.find((point) => Number.isInteger(point?.x) && point.x >= 0 && point.x < width && point?.y === height - 1)
+  const exit = map.exits.some((point) => point?.x === entrancePoint?.x && point?.y === height - 1)
+  const crossPassage = map.passages.find((passage) => passage?.x === 0 && passage?.width === width && passage?.height === 1)
+  const entrance = Boolean(entrancePoint)
+  const entrancePassage = Boolean(entrancePoint && crossPassage && map.passages.some((passage) => passage?.x === entrancePoint.x && passage?.y === crossPassage.y + 1 && passage?.width === 1 && passage?.y + passage.height === height - 1))
   const validPassages = map.passages.every((passage) => passage && Number.isInteger(passage.x) && Number.isInteger(passage.y) && Number.isInteger(passage.width) && Number.isInteger(passage.height) && passage.width > 0 && passage.height > 0 && passage.x >= 0 && passage.y >= 0 && passage.x + passage.width <= width && passage.y + passage.height <= height)
   const validWalls = map.walls === undefined || Array.isArray(map.walls) && map.walls.every((wall) => wall && Number.isInteger(wall.x) && Number.isInteger(wall.y) && wall.x >= 0 && wall.y >= 0 && wall.x < width && wall.y < height)
-  return entrance && exit && cross && entrancePassage && validPassages && validWalls
+  return entrance && exit && crossPassage && entrancePassage && validPassages && validWalls
 }
 
 function normalizeCompound(compound) {
   if (!compound || compound.version !== COMPOUND_DATA_VERSION || !isValidMap(compound.map) || !Array.isArray(compound.items)) return null
   const { width } = mapDimensions(compound.map)
-  const passages = compound.map.passages.some((passage) => passage.id === 'upper-gallery') || compound.map.passages.some((passage) => passage.y === 3 && passage.x === 0 && passage.width === width && passage.height === 1)
-    ? compound.map.passages : [...compound.map.passages, { id: 'upper-gallery', x: 0, y: 3, width, height: 1 }]
+  const crossPassage = compound.map.passages.find((passage) => passage.x === 0 && passage.width === width && passage.height === 1)
+  const passages = compound.map.passages.some((passage) => passage.id === 'upper-gallery') || compound.map.passages.some((passage) => passage.y === crossPassage.y - 1 && passage.x === 0 && passage.width === width && passage.height === 1)
+    ? compound.map.passages : [...compound.map.passages, { id: 'upper-gallery', x: 0, y: crossPassage.y - 1, width, height: 1 }]
   const normalized = {
     version: COMPOUND_DATA_VERSION,
     map: { ...compound.map, walls: (compound.map.walls ?? []).map((wall) => ({ ...wall })), rooms: compound.map.rooms.map((room) => ({ ...room })), passages: passages.map((passage) => ({ ...passage })), entrances: compound.map.entrances.map((point) => ({ ...point })), exits: compound.map.exits.map((point) => ({ ...point })) },
@@ -129,11 +135,17 @@ function normalizeCompound(compound) {
 }
 
 function upgradePersonalMap(compound) {
-  if (compound.map.width !== LEGACY_MAP_COLS || compound.map.height !== LEGACY_MAP_ROWS) return compound
+  const isLegacy = compound.map.width === LEGACY_MAP_COLS && compound.map.height === LEGACY_MAP_ROWS
+  const isPrevious = compound.map.width === PREVIOUS_MAP_COLS && compound.map.height === PREVIOUS_MAP_ROWS
+  if (!isLegacy && !isPrevious) return compound
+  const offsetX = (MAP_COLS - compound.map.width) / 2
+  const offsetY = MAP_ROWS - compound.map.height
+  const oldCross = compound.map.passages.find((passage) => passage.x === 0 && passage.width === compound.map.width && passage.height === 1)
+  const oldEntrance = compound.map.entrances[0]
   const passages = compound.map.passages.map((passage) => {
-    if (passage.id === 'main-cross-passage' || passage.id === 'upper-gallery' || passage.x === 0 && passage.width === LEGACY_MAP_COLS && passage.height === 1 && (passage.y === 3 || passage.y === 4)) return { ...passage, width: MAP_COLS }
-    if (passage.id === 'entrance-passage' || passage.x === 5 && passage.y === 5 && passage.width === 1 && passage.height === LEGACY_MAP_ROWS - 6) return { ...passage, height: MAP_ROWS - 6 }
-    return { ...passage }
+    if (passage.x === 0 && passage.width === compound.map.width && passage.height === 1) return { ...passage, y: passage.y + offsetY, width: MAP_COLS }
+    if (passage.x === oldEntrance.x && passage.y === oldCross.y + 1 && passage.width === 1) return { ...passage, x: passage.x + offsetX, y: passage.y + offsetY }
+    return { ...passage, x: passage.x + offsetX, y: passage.y + offsetY }
   })
   const expanded = {
     ...compound,
@@ -141,10 +153,13 @@ function upgradePersonalMap(compound) {
       ...compound.map,
       width: MAP_COLS,
       height: MAP_ROWS,
+      rooms: compound.map.rooms.map((room) => ({ ...room, x: room.x + offsetX, y: room.y + offsetY })),
       passages,
-      entrances: compound.map.entrances.map((point) => ({ ...point, y: MAP_ROWS - 1 })),
-      exits: compound.map.exits.map((point) => ({ ...point, y: MAP_ROWS - 1 })),
+      walls: (compound.map.walls ?? []).map((wall) => ({ ...wall, x: wall.x + offsetX, y: wall.y + offsetY })),
+      entrances: compound.map.entrances.map((point) => ({ ...point, x: point.x + offsetX, y: MAP_ROWS - 1 })),
+      exits: compound.map.exits.map((point) => ({ ...point, x: point.x + offsetX, y: MAP_ROWS - 1 })),
     },
+    items: compound.items.map((item) => ({ ...item, x: item.x + offsetX, y: item.y + offsetY })),
   }
   return normalizeCompound(expanded) ?? compound
 }
@@ -274,8 +289,8 @@ export function removePassageTile(passages, x, y) {
 
 export function placeRoom(items, x, y, id, map = null) {
   const { width, height } = mapDimensions(map)
-  const entrance = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
-  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
+  const entrance = map?.entrances?.[0] ?? { x: Math.floor(width / 2) - 3, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? height - 6
   const w = 2
   const h = 2
   const blocksRoute = (y <= crossY && y + h > crossY) || (x <= entrance.x && x + w > entrance.x && y + h > crossY + 1)
@@ -287,7 +302,7 @@ export function placeRoom(items, x, y, id, map = null) {
 
 export function placeTrap(items, x, y, id, trapType = DEFAULT_TRAP_TYPE, map = null) {
   const { height } = mapDimensions(map)
-  const entrancePoint = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
+  const entrancePoint = map?.entrances?.[0] ?? { x: Math.floor(MAP_COLS / 2) - 3, y: height - 1 }
   const entrance = x === entrancePoint.x && y === entrancePoint.y
   if (entrance || items.some((item) => overlaps(item, x, y, 1, 1))) return { error: 'blocked' }
   if (!TRAP_TYPES[trapType]) return { error: 'invalid-type' }
@@ -298,8 +313,8 @@ export function placeTrap(items, x, y, id, trapType = DEFAULT_TRAP_TYPE, map = n
 
 export function moveItem(items, id, x, y, map = null) {
   const { width, height } = mapDimensions(map)
-  const entrance = map?.entrances?.[0] ?? { x: 5, y: height - 1 }
-  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? 4
+  const entrance = map?.entrances?.[0] ?? { x: Math.floor(width / 2) - 3, y: height - 1 }
+  const crossY = map?.passages?.find((passage) => passage.x === 0 && passage.width === width)?.y ?? height - 6
   const moving = items.find((item) => item.id === id)
   if (!moving) return { error: 'missing' }
   const blocksRoute = moving.type === 'room' && ((y <= crossY && y + moving.h > crossY) || (x <= entrance.x && x + moving.w > entrance.x && y + moving.h > crossY + 1))

@@ -6,7 +6,7 @@ const DIRECTIONS = [{ x: 0, y: -1, facing: 'north' }, { x: 1, y: 0, facing: 'eas
 const directionIndex = (direction) => DIRECTIONS.findIndex((entry) => entry.facing === direction)
 const pointKey = ({ x, y }) => `${x}:${y}`
 
-function entranceOf(compound) { return compound.map.entrances[0] ?? compound.map.exits[0] ?? { x: 5, y: (compound.map.height ?? MAP_ROWS) - 1 } }
+function entranceOf(compound) { const width = compound.map.width ?? MAP_COLS; return compound.map.entrances[0] ?? compound.map.exits[0] ?? { x: Math.floor(width / 2) - 3, y: (compound.map.height ?? MAP_ROWS) - 1 } }
 function exitOf(compound) { return compound.map.exits[0] ?? entranceOf(compound) }
 
 function explicitWall(compound, point) {

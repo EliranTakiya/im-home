@@ -19,7 +19,7 @@ function BuilderBudget({ budget, remaining, spent, compact = false }) {
   </div>
 }
 
-function CompoundMap({ items, passages, map, tool, moveId, onCellClick, onItemClick }) {
+function CompoundMap({ items, passages, map, tool, moveId, onCellClick, onItemClick, entranceLabelLeft }) {
   const columns = map.width
   const rows = map.height
   const cells = useMemo(() => Array.from({ length: rows * columns }, (_, index) => {
@@ -32,7 +32,7 @@ function CompoundMap({ items, passages, map, tool, moveId, onCellClick, onItemCl
     return { x, y, item, entrance, corridor, gasZone }
   }), [items, passages, columns, rows, map.entrances])
 
-  return <div className={`map-frame ${tool ? `tool-${tool}` : ''} ${moveId ? 'move-mode' : ''}`} style={{ '--cols': columns, '--rows': rows }}>
+  return <div className={`map-frame ${tool ? `tool-${tool}` : ''} ${moveId ? 'move-mode' : ''}`} style={{ '--cols': columns, '--rows': rows, '--entrance-label-left': `${entranceLabelLeft}px` }}>
     <div className="map-coordinates map-coordinates-top">{Array.from({ length: columns }, (_, i) => <span key={i}>{String.fromCharCode(65 + i)}</span>)}</div>
     <div className="map-with-rows"><div className="map-coordinates map-coordinates-side">{Array.from({ length: rows }, (_, i) => <span key={i}>{String(i + 1).padStart(2, '0')}</span>)}</div>
       <div className="compound-grid" style={{ '--cols': columns, '--rows': rows }}>
@@ -275,9 +275,9 @@ export default function Builder({ onHome }) {
     <header className="builder-topbar"><div className="builder-brand"><span className="builder-logo">⌂</span><span>I’M <b>HOME</b></span><i /> <span className="builder-location">עורך המתחם</span></div><div className="prototype-tag"><i /> סביבת בנייה · אבטיפוס</div><div className="builder-header-actions"><BuilderBudget budget={budget} remaining={remaining} spent={spent} compact /><button type="button" className="builder-tools-toggle" aria-expanded={toolbarOpen} aria-controls="builder-tools" onClick={() => setToolbarOpen((current) => !current)}>כלי בנייה</button><button className="home-button" onClick={onHome}><span>←</span> חזרה למסך הבית</button></div></header>
     <section className="builder-heading"><div><span className="builder-kicker">המתחם שלך / עריכה</span><h1>בונים את <em>הבית.</em></h1><p>תכננו את המרחב, השאירו מעבר פתוח, והגנו על מה שחשוב.</p></div><BuilderBudget budget={budget} remaining={remaining} spent={spent} /></section>
     <WorkspaceFrame className="builder-workspace" inspector={inspector}>
-      <MapFirstLayout className={`builder-layout ${toolbarOpen && !selectedItem ? 'tools-open' : ''}`} startRail={utilityRail} endRail={toolbarOpen ? selectedItem ? <div className="builder-tool-rail-placeholder" aria-label="הגדרות הפריט נפתחו בחלונית" /> : toolbar : null} map={<div className="builder-map-stack"><div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">12 × 8</span></div>
+      <MapFirstLayout className={`builder-layout ${toolbarOpen && !selectedItem ? 'tools-open' : ''}`} startRail={utilityRail} endRail={toolbarOpen ? selectedItem ? <div className="builder-tool-rail-placeholder" aria-label="הגדרות הפריט נפתחו בחלונית" /> : toolbar : null} map={<div className="builder-map-stack"><div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">{mapTemplate.width} × {mapTemplate.height}</span></div>
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} /></div>
+          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} entranceLabelLeft={BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder + compound.map.entrances[0].x * (mapGeometry.cellSize + BUILDER_MAP_METRICS.cellGap) + mapGeometry.cellSize / 2} /></div>
           <div className="map-panel-foot"><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
         </div><RouteAnalysis analysis={routeAnalysis} className="route-analysis-phone-landscape" /></div>} />
     </WorkspaceFrame>

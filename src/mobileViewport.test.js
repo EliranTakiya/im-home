@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-test('Builder shares one measured viewport for its coordinates and complete 16 by 10 board', async () => {
+test('Builder shares one measured viewport for its coordinates and complete 20 by 12 board', async () => {
   const component = await readFile(new URL('./Builder.jsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('./BuilderWorkspace.css', import.meta.url), 'utf8')
   const sizing = await readFile(new URL('./builderMapSizing.js', import.meta.url), 'utf8')
