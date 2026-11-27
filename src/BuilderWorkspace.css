@@ -239,27 +239,35 @@
   .builder-layout.ih-map-first-layout .map-fit-viewport>.map-frame>.entrance-note{position:static;grid-column:1/-1;grid-row:3;display:flex;min-height:var(--map-entrance-band-height);margin:0;padding:0;justify-content:center;align-items:center;text-align:center;font-size:7px}
 }
 
-/* Phone-only landscape refinement for the Builder utility rail and route summary. */
+/* Touch landscape refinement for the Builder map and route summary. */
 .builder-map-stack{display:contents}
 .route-analysis-phone-landscape{display:none}
-@media (orientation:landscape) and (pointer:coarse) and (hover:none) and (max-width:980px) and (max-height:600px){
-  .builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(104px,.34fr) minmax(0,5fr) minmax(min(clamp(120px,22vw,210px),max(0px,calc(100% - var(--builder-map-width-floor) - 70px))),1.4fr)}
-  .builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(104px,.34fr) minmax(0,6fr)}
+.map-heading-legend,.map-home-button{display:none}
+@media (orientation:landscape) and (pointer:coarse) and (hover:none) and (max-height:600px){
+  .builder-layout.ih-map-first-layout.has-start-rail.has-end-rail{grid-template-columns:minmax(0,1fr) minmax(min(clamp(120px,22vw,210px),max(0px,calc(100% - var(--builder-map-width-floor) - 70px))),1.4fr);grid-template-areas:"map end"}
+  .builder-layout.ih-map-first-layout.has-start-rail:not(.has-end-rail){grid-template-columns:minmax(0,1fr);grid-template-areas:"map"}
+  .builder-layout.ih-map-first-layout>.ih-map-first-start{display:none}
   .builder-utility-rail>.route-analysis,.builder-utility-rail>.map-analysis-toggle{display:none}
   .builder-layout.ih-map-first-layout .builder-map-stack{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:5px;width:100%;height:100%;min-width:0;min-height:0}
-  .builder-layout.ih-map-first-layout .map-panel{width:auto;height:auto;min-width:0;min-height:0}
+  .builder-layout.ih-map-first-layout .map-panel{width:auto;height:auto;min-width:0;min-height:0;padding:0 3px}
   .builder-layout.ih-map-first-layout .map-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
   .builder-layout.ih-map-first-layout .map-panel-head>div{min-width:0}
   .builder-layout.ih-map-first-layout .map-panel-head h2{white-space:nowrap}
   .builder-layout.ih-map-first-layout .map-scale{flex:0 0 auto}
+  .builder-layout.ih-map-first-layout .map-heading-legend{display:flex;flex:0 1 auto;justify-content:center;gap:clamp(3px,.6vw,7px);min-width:0;margin-inline:auto}
+  .builder-layout.ih-map-first-layout .map-heading-legend span{gap:3px;font-size:clamp(6px,.7vw,8px);white-space:nowrap}
+  .builder-layout.ih-map-first-layout .map-heading-legend i{width:7px;height:7px;flex:0 0 7px}
+  .builder-layout.ih-map-first-layout .map-heading-actions{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+  .builder-layout.ih-map-first-layout .map-home-button{display:inline-flex;align-items:center;gap:3px;min-height:12px;padding:1px 4px;border:1px solid #d9a55c66;border-radius:3px;background:#d9a55c0d;color:#e7c68e;font:inherit;font-size:6px;white-space:nowrap}
+  .builder-topbar .home-button{display:none}
   .builder-layout.ih-map-first-layout .map-fit-viewport>.map-frame{position:relative}
   .builder-layout.ih-map-first-layout .map-fit-viewport>.map-frame>.entrance-note{position:absolute;left:var(--entrance-label-left);bottom:0;z-index:4;justify-self:auto;display:flex;width:max-content;min-height:var(--map-entrance-band-height);margin:0;padding:0;transform:translateX(-50%);white-space:nowrap;font-size:7px}
-  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape{position:static;display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:2px 8px;max-height:none;overflow:visible;margin:0;padding:3px 5px;border:1px solid #d9a55c55;border-radius:5px;background:#11130ff2;font-size:7px;line-height:1.05}
-  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape>div:first-child{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape{position:static;display:flex;flex-direction:column;max-height:none;overflow:visible;margin:0;padding:5px 7px;border:1px solid #d9a55c55;border-radius:5px;background:#11130ff2;font-size:7px}
+  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape>div:first-child{display:flex;align-items:center;gap:6px;min-width:0}
   .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape>div:first-child .map-kicker{font-size:7px;white-space:nowrap}
   .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape>div:first-child>b{font-size:8px;white-space:nowrap}
-  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape .route-analysis-stats{grid-column:2;grid-row:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px 4px;margin:0}
-  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape .route-analysis-stats span{min-width:0;font-size:clamp(5px,.65vw,7px);line-height:1.05;text-align:center}
-  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape p{grid-column:2;margin:0;font-size:6px;line-height:1.05}
+  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape .route-analysis-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px 7px;margin-top:4px}
+  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape .route-analysis-stats span{min-width:0;font-size:7px;line-height:1.15}
+  .builder-layout.ih-map-first-layout .builder-map-stack>.route-analysis-phone-landscape p{margin:3px 0 0;font-size:7px;line-height:1.2}
   .builder-layout.ih-map-first-layout .compound-grid .trap-mark{font-size:clamp(13px,calc(var(--map-cell-size) * .68),38px)}
 }

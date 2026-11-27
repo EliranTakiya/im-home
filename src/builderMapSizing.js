@@ -14,12 +14,12 @@ export const BUILDER_MAP_METRICS = Object.freeze({
 // of the measured workspace goes to the physical cells.
 export const LANDSCAPE_BUILDER_MAP_METRICS = Object.freeze({
   ...BUILDER_MAP_METRICS,
-  gridPadding: 1,
+  gridPadding: 0,
   rowAxisWidth: 12,
   rowAxisGap: 2,
-  columnAxisBand: 12,
-  columnAxisHeight: 10,
-  entranceBandHeight: 10,
+  columnAxisBand: 10,
+  columnAxisHeight: 9,
+  entranceBandHeight: 8,
 })
 
 export function calculateBuilderMapGeometry(width, height, columns = 20, rows = 12, metrics = BUILDER_MAP_METRICS) {
