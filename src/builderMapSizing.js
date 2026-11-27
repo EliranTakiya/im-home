@@ -10,29 +10,41 @@ export const BUILDER_MAP_METRICS = Object.freeze({
   frameBleed: 0,
 })
 
-// Landscape uses tighter coordinate bands and a narrower inner frame so more
-// of the measured workspace goes to the physical cells.
+// Touch landscape fills the marked Builder work area with larger uniform grid
+// tracks while keeping the board close to its intended widescreen proportions.
 export const LANDSCAPE_BUILDER_MAP_METRICS = Object.freeze({
   ...BUILDER_MAP_METRICS,
-  gridPadding: 1,
+  gridPadding: 0,
   rowAxisWidth: 12,
   rowAxisGap: 2,
-  columnAxisBand: 12,
-  columnAxisHeight: 10,
-  entranceBandHeight: 10,
+  columnAxisBand: 10,
+  columnAxisHeight: 9,
+  entranceBandHeight: 8,
+  fillViewport: true,
+  cellAspect: 1.15,
 })
 
 export function calculateBuilderMapGeometry(width, height, columns = 20, rows = 12, metrics = BUILDER_MAP_METRICS) {
-  const { cellGap, gridPadding, gridBorder, rowAxisWidth, rowAxisGap, columnAxisBand, entranceBandHeight, frameBleed } = metrics
+  const { cellGap, gridPadding, gridBorder, rowAxisWidth, rowAxisGap, columnAxisBand, entranceBandHeight, frameBleed, fillViewport = false, cellAspect = 1 } = metrics
   const horizontalChrome = (columns - 1) * cellGap + 2 * (gridPadding + gridBorder) + rowAxisWidth + rowAxisGap + frameBleed
   const verticalChrome = (rows - 1) * cellGap + 2 * (gridPadding + gridBorder) + columnAxisBand + entranceBandHeight + frameBleed
-  const cellSize = Math.max(0, Math.min((width - horizontalChrome) / columns, (height - verticalChrome) / rows))
+  const availableCellWidth = Math.max(0, (width - horizontalChrome) / columns)
+  const availableCellHeight = Math.max(0, (height - verticalChrome) / rows)
+  const cellSize = Math.min(availableCellWidth, availableCellHeight)
+  const cellWidth = fillViewport
+    ? Math.min(availableCellWidth, availableCellHeight * cellAspect)
+    : cellSize
+  const cellHeight = fillViewport
+    ? Math.min(availableCellHeight, availableCellWidth / cellAspect)
+    : cellSize
 
   return {
     cellSize,
-    trackWidth: columns * cellSize,
-    trackHeight: rows * cellSize,
-    contentWidth: columns * cellSize + (columns - 1) * cellGap,
-    contentHeight: rows * cellSize + (rows - 1) * cellGap,
+    cellWidth,
+    cellHeight,
+    trackWidth: columns * cellWidth,
+    trackHeight: rows * cellHeight,
+    contentWidth: columns * cellWidth + (columns - 1) * cellGap,
+    contentHeight: rows * cellHeight + (rows - 1) * cellGap,
   }
 }
