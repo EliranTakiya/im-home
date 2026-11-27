@@ -10,8 +10,20 @@ export const BUILDER_MAP_METRICS = Object.freeze({
   frameBleed: 0,
 })
 
-export function calculateBuilderMapGeometry(width, height, columns = 20, rows = 12) {
-  const { cellGap, gridPadding, gridBorder, rowAxisWidth, rowAxisGap, columnAxisBand, entranceBandHeight, frameBleed } = BUILDER_MAP_METRICS
+// Landscape uses tighter coordinate bands and a narrower inner frame so more
+// of the measured workspace goes to the physical cells.
+export const LANDSCAPE_BUILDER_MAP_METRICS = Object.freeze({
+  ...BUILDER_MAP_METRICS,
+  gridPadding: 1,
+  rowAxisWidth: 12,
+  rowAxisGap: 2,
+  columnAxisBand: 12,
+  columnAxisHeight: 10,
+  entranceBandHeight: 10,
+})
+
+export function calculateBuilderMapGeometry(width, height, columns = 20, rows = 12, metrics = BUILDER_MAP_METRICS) {
+  const { cellGap, gridPadding, gridBorder, rowAxisWidth, rowAxisGap, columnAxisBand, entranceBandHeight, frameBleed } = metrics
   const horizontalChrome = (columns - 1) * cellGap + 2 * (gridPadding + gridBorder) + rowAxisWidth + rowAxisGap + frameBleed
   const verticalChrome = (rows - 1) * cellGap + 2 * (gridPadding + gridBorder) + columnAxisBand + entranceBandHeight + frameBleed
   const cellSize = Math.max(0, Math.min((width - horizontalChrome) / columns, (height - verticalChrome) / rows))

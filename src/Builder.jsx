@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ROOM_COST, calculateBuildBudget, changeTrapType, createCompoundData, loadCompound, loadSavedItems, moveItem, placePassageTile, placeRoom, placeTrap, removeItem, removePassageTile, saveCompound as saveCompoundData, spentBudget, toggleTrapVisibility as toggleTrapVisibilityInItems, updateTrapSettings } from './compound.js'
 import { calculateTrapPrice, DEFAULT_TRAP_TYPE, TRAP_TYPES, TRAP_TYPE_LIST } from './traps.js'
 import { analyzeCompoundPaths } from './navigation.js'
-import { BUILDER_MAP_METRICS, calculateBuilderMapGeometry } from './builderMapSizing.js'
+import { BUILDER_MAP_METRICS, LANDSCAPE_BUILDER_MAP_METRICS, calculateBuilderMapGeometry } from './builderMapSizing.js'
 import { ActionFooter, FloatingInspector, MapFirstLayout, MessageLayer, WorkspaceFrame } from './GameShell.jsx'
 import './Builder.css'
 import './BuilderWorkspace.css'
@@ -113,7 +113,7 @@ function RouteAnalysis({ analysis, onClose, className = '' }) {
 
 export default function Builder({ onHome }) {
   const mapViewportRef = useRef(null)
-  const [mapViewport, setMapViewport] = useState({ width: 0, height: 0 })
+  const [mapViewport, setMapViewport] = useState({ width: 0, height: 0, landscape: false })
   const [items, setItems] = useState(() => loadSavedItems())
   const [mapTemplate] = useState(() => loadCompound().map)
   const [passages, setPassages] = useState(() => mapTemplate.passages)
@@ -137,7 +137,8 @@ export default function Builder({ onHome }) {
     if (!viewport) return undefined
     const measure = () => {
       const { width, height } = viewport.getBoundingClientRect()
-      setMapViewport((current) => Math.abs(current.width - width) < 1 && Math.abs(current.height - height) < 1 ? current : { width, height })
+      const landscape = window.matchMedia('(orientation: landscape)').matches
+      setMapViewport((current) => Math.abs(current.width - width) < 1 && Math.abs(current.height - height) < 1 && current.landscape === landscape ? current : { width, height, landscape })
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
@@ -151,23 +152,27 @@ export default function Builder({ onHome }) {
     }
   }, [])
 
-  const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, mapTemplate.width, mapTemplate.height)
+  const landscapeMap = mapViewport.landscape
+  const mapMetrics = landscapeMap ? LANDSCAPE_BUILDER_MAP_METRICS : BUILDER_MAP_METRICS
+  const mapGeometry = calculateBuilderMapGeometry(mapViewport.width, mapViewport.height, mapTemplate.width, mapTemplate.height, mapMetrics)
   const mapFitStyle = {
     '--map-fit-width': `${mapGeometry.contentWidth}px`,
     '--map-fit-height': `${mapGeometry.contentHeight}px`,
-    '--map-grid-outer-width': `${mapGeometry.contentWidth + 2 * (BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder)}px`,
-    '--map-grid-outer-height': `${mapGeometry.contentHeight + 2 * (BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder)}px`,
+    '--map-grid-outer-width': `${mapGeometry.contentWidth + 2 * (mapMetrics.gridPadding + mapMetrics.gridBorder)}px`,
+    '--map-grid-outer-height': `${mapGeometry.contentHeight + 2 * (mapMetrics.gridPadding + mapMetrics.gridBorder)}px`,
     '--map-grid-track-width': `${mapGeometry.trackWidth}px`,
     '--map-grid-track-height': `${mapGeometry.trackHeight}px`,
     '--map-cell-size': `${mapGeometry.cellSize}px`,
-    '--map-cell-gap': `${BUILDER_MAP_METRICS.cellGap}px`,
-    '--map-grid-padding': `${BUILDER_MAP_METRICS.gridPadding}px`,
-    '--map-grid-border': `${BUILDER_MAP_METRICS.gridBorder}px`,
-    '--map-row-axis-width': `${BUILDER_MAP_METRICS.rowAxisWidth}px`,
-    '--map-row-axis-gap': `${BUILDER_MAP_METRICS.rowAxisGap}px`,
-    '--map-column-axis-band': `${BUILDER_MAP_METRICS.columnAxisBand}px`,
-    '--map-column-axis-height': `${BUILDER_MAP_METRICS.columnAxisHeight}px`,
-    '--map-entrance-band-height': `${BUILDER_MAP_METRICS.entranceBandHeight}px`,
+    '--map-cell-gap': `${mapMetrics.cellGap}px`,
+    '--map-grid-padding': `${mapMetrics.gridPadding}px`,
+    '--map-grid-border': `${mapMetrics.gridBorder}px`,
+    '--map-row-axis-width': `${mapMetrics.rowAxisWidth}px`,
+    '--map-row-axis-gap': `${mapMetrics.rowAxisGap}px`,
+    '--map-row-axis-offset': `${(mapMetrics.rowAxisWidth + mapMetrics.rowAxisGap) / 2}px`,
+    '--map-column-axis-band': `${mapMetrics.columnAxisBand}px`,
+    '--map-column-axis-height': `${mapMetrics.columnAxisHeight}px`,
+    '--map-entrance-band-height': `${mapMetrics.entranceBandHeight}px`,
+    '--map-axis-total': `${mapMetrics.columnAxisBand + mapMetrics.columnAxisHeight + mapMetrics.entranceBandHeight}px`,
   }
 
   function handleCellClick(x, y) {
@@ -277,7 +282,7 @@ export default function Builder({ onHome }) {
     <WorkspaceFrame className="builder-workspace" inspector={inspector}>
       <MapFirstLayout className={`builder-layout ${toolbarOpen && !selectedItem ? 'tools-open' : ''}`} startRail={utilityRail} endRail={toolbarOpen ? selectedItem ? <div className="builder-tool-rail-placeholder" aria-label="הגדרות הפריט נפתחו בחלונית" /> : toolbar : null} map={<div className="builder-map-stack"><div className="map-panel"><div className="map-panel-head"><div><span className="map-kicker">מבט על · אזור מגורים</span><h2>מתחם 01 <i /> <small>הגבעה הצפונית</small></h2></div><span className="map-scale">{mapTemplate.width} × {mapTemplate.height}</span></div>
           <div className="map-instruction">{moveId && moveId !== 'choose' ? 'בחרו משבצת פנויה להעברת הפריט' : tool === 'room' ? 'בחרו את הפינה השמאלית העליונה של החדר' : tool === 'passage' ? 'בחרו משבצת קיר כדי להוסיף מקטע מסדרון' : tool === 'trap' ? 'בחרו משבצת בחדר או במסדרון' : moveId === 'choose' ? 'בחרו פריט במפה כדי להזיז אותו' : 'בחרו כלי בנייה או פריט במפה לעריכה'}</div>
-          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} entranceLabelLeft={BUILDER_MAP_METRICS.gridPadding + BUILDER_MAP_METRICS.gridBorder + compound.map.entrances[0].x * (mapGeometry.cellSize + BUILDER_MAP_METRICS.cellGap) + mapGeometry.cellSize / 2} /></div>
+          <div className="map-fit-viewport" ref={mapViewportRef} style={mapFitStyle}><CompoundMap items={items} passages={passages} map={compound.map} tool={tool} moveId={moveId && moveId !== 'choose' ? moveId : null} onCellClick={handleCellClick} onItemClick={handleItemClick} entranceLabelLeft={mapMetrics.gridPadding + mapMetrics.gridBorder + compound.map.entrances[0].x * (mapGeometry.cellSize + mapMetrics.cellGap) + mapGeometry.cellSize / 2} /></div>
           <div className="map-panel-foot"><span>כניסה אחת נשארת פתוחה בכל עת</span></div>
         </div><RouteAnalysis analysis={routeAnalysis} className="route-analysis-phone-landscape" /></div>} />
     </WorkspaceFrame>
